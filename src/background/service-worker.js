@@ -77,33 +77,52 @@ function initDefaultState() {
   });
 }
 
-function setupDailyReflectionAlarm() {
-  chrome.alarms.get("daily-reflection", (existing) => {
-    if (existing) return;
+function setupDailyReflectionAlarm(forced = false) {
+  chrome.storage.local.get(["app_config"], (res) => {
+    const reminderTime = res.app_config?.reflection?.reminderTime || "22:00";
+    const [targetH, targetM] = reminderTime.split(":").map(Number);
+    const validH = isNaN(targetH) ? 22 : targetH;
+    const validM = isNaN(targetM) ? 0 : targetM;
 
-    const now = new Date();
-    const next22h = new Date();
-    next22h.setHours(22, 0, 0, 0);
+    chrome.alarms.get("daily-reflection", (existing) => {
+      if (existing && !forced) return;
 
-    if (now >= next22h) {
-      next22h.setDate(next22h.getDate() + 1);
-    }
+      const now = new Date();
+      const nextTime = new Date();
+      nextTime.setHours(validH, validM, 0, 0);
 
-    const delayMinutes = (next22h.getTime() - now.getTime()) / (1000 * 60);
+      if (now >= nextTime) {
+        nextTime.setDate(nextTime.getDate() + 1);
+      }
 
-    chrome.alarms.create("daily-reflection", {
-      delayInMinutes: delayMinutes,
-      periodInMinutes: 24 * 60
+      const delayMinutes = Math.max(0.5, (nextTime.getTime() - now.getTime()) / (1000 * 60));
+
+      chrome.alarms.clear("daily-reflection", () => {
+        chrome.alarms.create("daily-reflection", {
+          delayInMinutes: delayMinutes,
+          periodInMinutes: 24 * 60
+        });
+        console.log(`[Mindful SW] Đã đặt alarm phản tư lúc ${validH.toString().padStart(2, "0")}:${validM.toString().padStart(2, "0")} (sau ${Math.round(delayMinutes)} phút)`);
+      });
     });
-
-    console.log(`[Mindful SW] Đã đặt alarm 22h00 (sau ${Math.round(delayMinutes)} phút)`);
   });
 }
 
-// Lắng nghe alarm kích hoạt lúc 22h00
+// Lắng nghe alarm kích hoạt lúc giờ phản tư
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "daily-reflection") {
     handleDaily22hRoutine();
+  }
+});
+
+// Lắng nghe thay đổi giờ phản tư từ storage
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace === "local" && changes.app_config) {
+    const oldRem = changes.app_config.oldValue?.reflection?.reminderTime;
+    const newRem = changes.app_config.newValue?.reflection?.reminderTime;
+    if (newRem && newRem !== oldRem) {
+      setupDailyReflectionAlarm(true);
+    }
   }
 });
 
@@ -368,9 +387,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  // 13. Dev Mode: Kích hoạt mở tab phản tư 22h00 ngay lập tức
+  // 13. Dev Mode: Kích hoạt mở tab phản tư ngay lập tức
   if (msg.type === "TRIGGER_DEV_REFLECTION") {
     openReflectionTab();
+    sendResponse({ ok: true });
+    return true;
+  }
+
+  // 13b. Cập nhật lại lịch báo thức phản tư khi đổi cấu hình
+  if (msg.type === "UPDATE_REFLECTION_ALARM") {
+    setupDailyReflectionAlarm(true);
     sendResponse({ ok: true });
     return true;
   }

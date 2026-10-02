@@ -353,6 +353,12 @@ function setupSettings() {
   const btnTestKey = document.getElementById("btn-test-gemini-key");
   const geminiStatus = document.getElementById("cfg-gemini-status");
 
+  // Bedtime & Reflection schedule inputs
+  const bedtimeEnabled = document.getElementById("cfg-bedtime-enabled");
+  const bedtimeStart = document.getElementById("cfg-bedtime-start");
+  const bedtimeEnd = document.getElementById("cfg-bedtime-end");
+  const reflectionTime = document.getElementById("cfg-reflection-time");
+
   // Nạp cấu hình & API Key đã lưu
   chrome.storage.local.get(["app_config", "gemini_api_key"], (result) => {
     const config = result.app_config || {};
@@ -361,6 +367,12 @@ function setupSettings() {
     const fbThresh = thresholds.facebook || {};
     const oldShorts = thresholds.shorts || {};
     const oldLong = thresholds.long || {};
+
+    // Bedtime & Reflection
+    if (bedtimeEnabled) bedtimeEnabled.checked = config.bedtime?.enabled !== false;
+    if (bedtimeStart) bedtimeStart.value = config.bedtime?.start || "22:30";
+    if (bedtimeEnd) bedtimeEnd.value = config.bedtime?.end || "05:00";
+    if (reflectionTime) reflectionTime.value = config.reflection?.reminderTime || "22:00";
 
     if (geminiKeyInput && result.gemini_api_key) {
       geminiKeyInput.value = result.gemini_api_key;
@@ -535,10 +547,19 @@ function setupSettings() {
         enabled: pomodoroEnabled?.checked || false,
         focusMinutes: parseInt(pomodoroFocus?.value) || 25,
         breakMinutes: parseInt(pomodoroBreak?.value) || 5
+      },
+      bedtime: {
+        enabled: bedtimeEnabled ? bedtimeEnabled.checked : true,
+        start: bedtimeStart?.value || "22:30",
+        end: bedtimeEnd?.value || "05:00"
+      },
+      reflection: {
+        reminderTime: reflectionTime?.value || "22:00"
       }
     };
 
     chrome.storage.local.set({ app_config, gemini_api_key: geminiKey }, () => {
+      chrome.runtime.sendMessage({ type: "UPDATE_REFLECTION_ALARM" }).catch(() => {});
       const toast = document.getElementById("cfg-save-toast");
       if (toast) {
         toast.style.display = "block";

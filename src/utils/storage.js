@@ -70,6 +70,14 @@ export const DEFAULT_CONFIG = {
     enabled: false,
     focusMinutes: 25,
     breakMinutes: 5
+  },
+  bedtime: {
+    enabled: true,
+    start: "22:30",
+    end: "05:00"
+  },
+  reflection: {
+    reminderTime: "22:00"
   }
 };
 

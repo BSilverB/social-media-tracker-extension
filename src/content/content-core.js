@@ -198,12 +198,28 @@ function evaluateGrayscaleMode() {
   }
   const isOverM2 = currentCount >= m2Limit;
 
-  // (c) Khung giờ ban đêm sau 22h30 hoặc trước 05h00 sáng
+  // (c) Khung giờ đi ngủ (Bedtime Mode) do người dùng chủ động cài đặt
   const now = new Date();
   const currentMins = now.getHours() * 60 + now.getMinutes();
-  const isLateNight = currentMins >= (22 * 60 + 30) || currentMins < (5 * 60);
 
-  const shouldGrayscale = isMusicFocus || isPomodoroFocus || isOverM2 || isLateNight;
+  let isBedtime = false;
+  const bedtimeCfg = appConfig?.bedtime || { enabled: true, start: "22:30", end: "05:00" };
+  if (bedtimeCfg.enabled !== false) {
+    const [startH, startM] = (bedtimeCfg.start || "22:30").split(":").map(Number);
+    const [endH, endM] = (bedtimeCfg.end || "05:00").split(":").map(Number);
+    const startTotal = (isNaN(startH) ? 22 : startH) * 60 + (isNaN(startM) ? 30 : startM);
+    const endTotal = (isNaN(endH) ? 5 : endH) * 60 + (isNaN(endM) ? 0 : endM);
+
+    if (startTotal > endTotal) {
+      // Qua nửa đêm (ví dụ 22:30 tối đến 05:00 sáng)
+      isBedtime = currentMins >= startTotal || currentMins < endTotal;
+    } else {
+      // Trong cùng 1 ngày
+      isBedtime = currentMins >= startTotal && currentMins < endTotal;
+    }
+  }
+
+  const shouldGrayscale = isMusicFocus || isPomodoroFocus || isOverM2 || isBedtime;
 
   if (shouldGrayscale) {
     if (!htmlEl.classList.contains("mindful-grayscale-active")) {
@@ -526,6 +542,7 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     if (pomodoroManager && appConfig.pomodoro) {
       pomodoroManager.updateConfig(appConfig.pomodoro);
     }
+    evaluateGrayscaleMode();
     onUpdate();
   }
 
