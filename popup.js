@@ -309,6 +309,68 @@ function setupResetButton() {
   });
 }
 
+// ─── Helpers: Bộ Chọn Giờ 24H Trực Quan & Thân Thiện ─────────────────────────
+function populateTimePicker(hourEl, minEl, timeStr = "22:00", stepMinutes = 5) {
+  if (!hourEl || !minEl) return;
+  const [h, m] = (timeStr || "22:00").split(":").map(Number);
+  const targetH = isNaN(h) ? 22 : h;
+  const targetM = isNaN(m) ? 0 : m;
+
+  hourEl.innerHTML = "";
+  for (let i = 0; i < 24; i++) {
+    const val = String(i).padStart(2, "0");
+    const opt = document.createElement("option");
+    opt.value = val;
+    opt.textContent = `${val}h`;
+    if (i === targetH) opt.selected = true;
+    hourEl.appendChild(opt);
+  }
+
+  minEl.innerHTML = "";
+  let closestVal = 0;
+  let minDiff = 999;
+  for (let i = 0; i < 60; i += stepMinutes) {
+    const diff = Math.abs(i - targetM);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closestVal = i;
+    }
+  }
+
+  for (let i = 0; i < 60; i += stepMinutes) {
+    const val = String(i).padStart(2, "0");
+    const opt = document.createElement("option");
+    opt.value = val;
+    opt.textContent = `${val}p`;
+    if (i === closestVal) opt.selected = true;
+    minEl.appendChild(opt);
+  }
+}
+
+function getTimePickerValue(hourEl, minEl, fallback = "22:00") {
+  if (!hourEl || !minEl) return fallback;
+  return `${hourEl.value || "22"}:${minEl.value || "00"}`;
+}
+
+function updateBedtimeSummaryHint() {
+  const hintEl = document.getElementById("bedtime-summary-hint");
+  const sHour = document.getElementById("cfg-bedtime-start-hour")?.value || "22";
+  const sMin = document.getElementById("cfg-bedtime-start-minute")?.value || "30";
+  const eHour = document.getElementById("cfg-bedtime-end-hour")?.value || "05";
+  const eMin = document.getElementById("cfg-bedtime-end-minute")?.value || "00";
+
+  const startTotal = parseInt(sHour) * 60 + parseInt(sMin);
+  const endTotal = parseInt(eHour) * 60 + parseInt(eMin);
+
+  let diffMins = endTotal - startTotal;
+  if (diffMins <= 0) diffMins += 24 * 60;
+
+  const diffHours = (diffMins / 60).toFixed(1).replace(".0", "");
+  if (hintEl) {
+    hintEl.innerHTML = `💡 Bắt đầu ngủ lúc <b>${sHour}:${sMin}</b> tối nay ➔ Thức dậy <b>${eHour}:${eMin}</b> sáng mai (Khoảng <b>${diffHours} tiếng</b> ngủ ngon).`;
+  }
+}
+
 // Quản lý Cấu hình & Cảnh báo (Nâng cấp mốc riêng từng nền tảng, Pomodoro & Keywords)
 function setupSettings() {
   // YouTube inputs
@@ -353,11 +415,14 @@ function setupSettings() {
   const btnTestKey = document.getElementById("btn-test-gemini-key");
   const geminiStatus = document.getElementById("cfg-gemini-status");
 
-  // Bedtime & Reflection schedule inputs
+  // Bedtime & Reflection schedule inputs (Chuẩn 24h)
   const bedtimeEnabled = document.getElementById("cfg-bedtime-enabled");
-  const bedtimeStart = document.getElementById("cfg-bedtime-start");
-  const bedtimeEnd = document.getElementById("cfg-bedtime-end");
-  const reflectionTime = document.getElementById("cfg-reflection-time");
+  const bedStartHour = document.getElementById("cfg-bedtime-start-hour");
+  const bedStartMin = document.getElementById("cfg-bedtime-start-minute");
+  const bedEndHour = document.getElementById("cfg-bedtime-end-hour");
+  const bedEndMin = document.getElementById("cfg-bedtime-end-minute");
+  const refHour = document.getElementById("cfg-reflection-hour");
+  const refMin = document.getElementById("cfg-reflection-minute");
 
   // Nạp cấu hình & API Key đã lưu
   chrome.storage.local.get(["app_config", "gemini_api_key"], (result) => {
@@ -368,11 +433,16 @@ function setupSettings() {
     const oldShorts = thresholds.shorts || {};
     const oldLong = thresholds.long || {};
 
-    // Bedtime & Reflection
+    // Khởi tạo các dropdown giờ 24h cho Bedtime & Reflection
     if (bedtimeEnabled) bedtimeEnabled.checked = config.bedtime?.enabled !== false;
-    if (bedtimeStart) bedtimeStart.value = config.bedtime?.start || "22:30";
-    if (bedtimeEnd) bedtimeEnd.value = config.bedtime?.end || "05:00";
-    if (reflectionTime) reflectionTime.value = config.reflection?.reminderTime || "22:00";
+    populateTimePicker(refHour, refMin, config.reflection?.reminderTime || "22:00", 5);
+    populateTimePicker(bedStartHour, bedStartMin, config.bedtime?.start || "22:30", 5);
+    populateTimePicker(bedEndHour, bedEndMin, config.bedtime?.end || "05:00", 5);
+    updateBedtimeSummaryHint();
+
+    [bedStartHour, bedStartMin, bedEndHour, bedEndMin].forEach(el => {
+      el?.addEventListener("change", updateBedtimeSummaryHint);
+    });
 
     if (geminiKeyInput && result.gemini_api_key) {
       geminiKeyInput.value = result.gemini_api_key;
@@ -550,11 +620,11 @@ function setupSettings() {
       },
       bedtime: {
         enabled: bedtimeEnabled ? bedtimeEnabled.checked : true,
-        start: bedtimeStart?.value || "22:30",
-        end: bedtimeEnd?.value || "05:00"
+        start: getTimePickerValue(bedStartHour, bedStartMin, "22:30"),
+        end: getTimePickerValue(bedEndHour, bedEndMin, "05:00")
       },
       reflection: {
-        reminderTime: reflectionTime?.value || "22:00"
+        reminderTime: getTimePickerValue(refHour, refMin, "22:00")
       }
     };
 

@@ -316,6 +316,27 @@
       background: rgba(239, 68, 68, 0.2);
     }
 
+    .time-picker-select {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #F8FAFC;
+      border-radius: 6px;
+      padding: 3px 5px;
+      font-size: 11.5px;
+      font-weight: 700;
+      outline: none;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .time-picker-select:focus {
+      border-color: #8B5CF6;
+      box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+    }
+    .time-picker-select option {
+      background: #0F172A;
+      color: #F8FAFC;
+    }
+
   </style>
 </head>
 <body>
@@ -1017,25 +1038,29 @@ phát triển bản thân
 tài chính" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:8px;padding:8px;font-size:12px;resize:vertical;outline:none;font-family:inherit;"></textarea>
     </div>
 
-    <!-- Sleep & Reflection Schedule Card -->
+    <!-- Sleep & Reflection Schedule Card (Chuẩn 24h & Thân Thiện) -->
     <div class="card" style="border: 1px solid rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.06);">
       <div class="card-header">
-        <span class="card-title" style="color:#A5B4FC;">🌙 Giờ Đi Ngủ & Phản Tư Cuối Ngày</span>
+        <span class="card-title" style="color:#A5B4FC;">🌙 Giờ Đi Ngủ & Phản Tư (Chuẩn 24H)</span>
       </div>
 
-      <!-- Cài đặt Giờ Phản Tư -->
+      <!-- Cài đặt Giờ Phản Tư (Lặp lại mỗi ngày) -->
       <div style="margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.08);">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-          <label style="font-size:11px; font-weight:700; color:#E0E7FF;">📝 Giờ Nhắc Nhở Phản Tư:</label>
-          <input type="time" id="cfg-reflection-time" value="22:00"
-            style="background:rgba(0,0,0,0.3); border:1px solid rgba(165,180,252,0.4); color:#fff; border-radius:6px; padding:3px 8px; font-size:12px; font-weight:bold; outline:none;">
+          <label style="font-size:11px; font-weight:700; color:#E0E7FF;">📝 Giờ Nhắc Phản Tư (Mỗi ngày):</label>
+          <div style="display:flex; align-items:center; gap:4px;">
+            <select id="cfg-reflection-hour" class="time-picker-select"></select>
+            <span style="font-weight:bold; color:#A5B4FC;">:</span>
+            <select id="cfg-reflection-minute" class="time-picker-select"></select>
+            <span style="font-size:10px; color:#A5B4FC; font-weight:600; margin-left:2px;">(24h)</span>
+          </div>
         </div>
         <div style="font-size:9.5px; color:var(--text-secondary); line-height:1.4;">
-          Tự động mở trang nhật ký phản tư, đánh giá tiến độ mục tiêu và nhận phân tích AI hàng ngày vào giờ này.
+          Lặp lại mỗi ngày: Tự động mở tab phản tư, đánh giá mục tiêu và nhận phân tích AI.
         </div>
       </div>
 
-      <!-- Cài đặt Giờ Đi Ngủ -->
+      <!-- Cài đặt Giờ Đi Ngủ (Tối hôm nay -> Sáng hôm sau) -->
       <div>
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
           <label style="font-size:11px; font-weight:700; color:#E0E7FF; display:flex; align-items:center; gap:5px; cursor:pointer;">
@@ -1044,19 +1069,37 @@ tài chính" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,0.3);
           </label>
         </div>
         <div style="font-size:9.5px; color:var(--text-secondary); margin-bottom:8px; line-height:1.4;">
-          Màn hình tự động chuyển sang màu trắng đen (Grayscale) trong khung giờ này để giảm ánh sáng xanh, bảo vệ mắt và hỗ trợ giấc ngủ.
+          Màn hình tự động chuyển sang trắng đen (Grayscale) trong suốt giấc ngủ để bảo vệ mắt và kích thích buồn ngủ.
         </div>
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.06); padding:8px 10px; border-radius:8px;">
+          <!-- Tối hôm nay -->
           <div>
-            <label style="font-size:9.5px; color:#CBD5E1; font-weight:600; display:block; margin-bottom:2px;">Bắt đầu ngủ:</label>
-            <input type="time" id="cfg-bedtime-start" value="22:30"
-              style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px; padding:4px 6px; font-size:11.5px; font-weight:bold; outline:none;">
+            <div style="font-size:10px; color:#FCD34D; font-weight:700; margin-bottom:3px;">
+              🌙 Tối hôm nay ngủ:
+            </div>
+            <div style="display:flex; align-items:center; gap:3px;">
+              <select id="cfg-bedtime-start-hour" class="time-picker-select"></select>
+              <span style="font-weight:bold; color:#FCD34D;">:</span>
+              <select id="cfg-bedtime-start-minute" class="time-picker-select"></select>
+            </div>
           </div>
+
+          <!-- Sáng hôm sau -->
           <div>
-            <label style="font-size:9.5px; color:#CBD5E1; font-weight:600; display:block; margin-bottom:2px;">Thức dậy (Sáng):</label>
-            <input type="time" id="cfg-bedtime-end" value="05:00"
-              style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px; padding:4px 6px; font-size:11.5px; font-weight:bold; outline:none;">
+            <div style="font-size:10px; color:#6EE7B7; font-weight:700; margin-bottom:3px;">
+              ☀️ Sáng hôm sau dậy:
+            </div>
+            <div style="display:flex; align-items:center; gap:3px;">
+              <select id="cfg-bedtime-end-hour" class="time-picker-select"></select>
+              <span style="font-weight:bold; color:#6EE7B7;">:</span>
+              <select id="cfg-bedtime-end-minute" class="time-picker-select"></select>
+            </div>
           </div>
+        </div>
+
+        <div id="bedtime-summary-hint" style="font-size:9.5px; color:#CBD5E1; margin-top:6px; font-style:italic; text-align:center;">
+          💡 Bắt đầu ngủ lúc 22:30 tối nay ➔ Thức dậy 05:00 sáng mai (6.5 tiếng).
         </div>
       </div>
     </div>
