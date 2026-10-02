@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="utf-8">
+  <title>Nhật Ký Phản Tư Cuối Ngày — Mindful Tracker</title>
+  <meta name="description"
+    content="Nhìn lại ngày hôm nay: thống kê thời gian xao nhãng vs hữu ích và ghi bài học đọng lại">
+  <style>
+    :root {
+      --bg: #080C14;
+      --card: rgba(15, 23, 42, 0.85);
+      --border: rgba(255, 255, 255, 0.07);
+      --purple: #8B5CF6;
+      --cyan: #06B6D4;
+      --green: #10B981;
+      --amber: #F59E0B;
+      --red: #EF4444;
+      --text: #F1F5F9;
+      --muted: #64748B;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+      padding: 32px 16px;
+      background-image:
+        radial-gradient(ellipse at 20% 10%, rgba(139, 92, 246, 0.12) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 80%, rgba(6, 182, 212, 0.08) 0%, transparent 50%);
+    }
+
+    .container {
+      max-width: 680px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .header-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #A78BFA, #06B6D4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 6px;
+    }
+
+    .header .subtitle {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .date-badge {
+      display: inline-block;
+      margin-top: 10px;
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      color: #A78BFA;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 14px;
+      border-radius: 20px;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(12px);
+    }
+
+    .card-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .stat-box {
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+      border: 1px solid var(--border);
+    }
+
+    .stat-value {
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* Chart Bar */
+    .ratio-section {
+      margin-top: 12px;
+    }
+
+    .ratio-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .ratio-bar {
+      height: 12px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+    }
+
+    .ratio-fill-useful {
+      height: 100%;
+      background: linear-gradient(90deg, #10B981, #06B6D4);
+      transition: width 0.6s ease;
+    }
+
+    .ratio-fill-distract {
+      height: 100%;
+      background: linear-gradient(90deg, #EF4444, #F59E0B);
+      transition: width 0.6s ease;
+    }
+
+    /* Category breakdown */
+    .cat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+
+    .cat-row:last-child {
+      border-bottom: none;
+    }
+
+    .cat-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(139, 92, 246, 0.2);
+      color: #A78BFA;
+    }
+
+    /* Bài học / Form */
+    .lesson-group {
+      margin-bottom: 16px;
+    }
+
+    .lesson-label {
+      font-size: 12px;
+      color: #94A3B8;
+      margin-bottom: 8px;
+    }
+
+    textarea {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #fff;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      resize: vertical;
+      outline: none;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+
+    textarea:focus {
+      border-color: var(--purple);
+    }
+
+    /* Rating */
+    .rating-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .rating-label {
+      font-size: 12px;
+      color: #94A3B8;
+    }
+
+    .rating-stars {
+      display: flex;
+      gap: 4px;
+    }
+
+    .star {
+      font-size: 20px;
+      cursor: pointer;
+      transition: transform 0.15s;
+      filter: grayscale(1);
+      opacity: 0.4;
+    }
+
+    .star.active {
+      filter: none;
+      opacity: 1;
+      transform: scale(1.15);
+    }
+
+    /* Buttons */
+    .btn-primary {
+      width: 100%;
+      background: linear-gradient(135deg, #8B5CF6, #6366F1);
+      border: none;
+      color: #fff;
+      font-weight: 700;
+      font-size: 14px;
+      padding: 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(139, 92, 246, 0.35);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 24px rgba(139, 92, 246, 0.45);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.98);
+    }
+
+    /* Toast saved */
+    .saved-toast {
+      display: none;
+      text-align: center;
+      padding: 12px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 10px;
+      color: #10B981;
+      font-weight: 600;
+      font-size: 13px;
+      margin-top: 12px;
+    }
+
+    /* AI Coach Card */
+    .card-ai {
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      background: radial-gradient(ellipse at top left, rgba(139, 92, 246, 0.12), rgba(15, 23, 42, 0.9));
+      box-shadow: 0 8px 30px rgba(139, 92, 246, 0.15);
+    }
+    .ai-feedback-box {
+      background: rgba(0, 0, 0, 0.35);
+      border-left: 3px solid #8B5CF6;
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #E2E8F0;
+      margin-bottom: 14px;
+      white-space: pre-line;
+    }
+    .ai-video-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #10B981;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      margin: 4px 4px 0 0;
+    }
+    .ai-mission-box {
+      background: rgba(6, 182, 212, 0.1);
+      border: 1px dashed rgba(6, 182, 212, 0.4);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #38BDF8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Suggested Keywords */
+    .kw-card {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+    .kw-badge-conf {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(139, 92, 246, 0.2);
+      color: #A78BFA;
+      font-weight: 700;
+    }
+    .btn-kw-action {
+      border: none;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn-kw-approve {
+      background: #10B981;
+      color: #fff;
+    }
+    .btn-kw-dismiss {
+      background: rgba(255, 255, 255, 0.1);
+      color: #94A3B8;
+    }
+
+    /* Persona grid */
+    .persona-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    /* Empty state */
+    .empty {
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 16px 0;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-icon">🌙</div>
+      <h1>Nhật Ký Phản Tư Cuối Ngày</h1>
+      <p class="subtitle">Nhìn lại hành trình hôm nay — Xây dựng bản thân tốt hơn từng ngày</p>
+      <div class="date-badge" id="today-date">—</div>
+    </div>
+
+    <!-- Thống kê tổng -->
+    <div class="card">
+      <div class="card-title">📊 Thống kê thời gian hôm nay</div>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-value" id="stat-total-active" style="color:var(--cyan)">0m</div>
+          <div class="stat-label">⏱ Tổng thời gian Active</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" id="stat-useful-pct" style="color:var(--green)">0%</div>
+          <div class="stat-label">✅ Tỷ lệ Nội dung Hữu ích</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" id="stat-distract-pct" style="color:var(--red)">0%</div>
+          <div class="stat-label">⚡ Tỷ lệ Xao nhãng (Bốc đồng)</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" id="stat-total-videos" style="color:var(--amber)">0</div>
+          <div class="stat-label">🎬 Video/Reels đã xem</div>
+        </div>
+      </div>
+
+      <!-- Thanh tỷ lệ Hữu ích vs Xao nhãng -->
+      <div class="ratio-section">
+        <div class="ratio-label">
+          <span style="color:var(--green)">✅ Hữu ích</span>
+          <span style="color:var(--red)">⚡ Xao nhãng</span>
+        </div>
+        <div class="ratio-bar">
+          <div class="ratio-fill-useful" id="bar-useful" style="width:0%"></div>
+          <div class="ratio-fill-distract" id="bar-distract" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phân loại nội dung -->
+    <div class="card">
+      <div class="card-title">🏷️ Phân loại Nội dung đã xem</div>
+      <div id="categories-list">
+        <div class="empty">Chưa có dữ liệu phân loại hôm nay.</div>
+      </div>
+    </div>
+
+    <!-- Form bài học -->
+    <div class="card">
+      <div class="card-title">✍️ 2 Bài học Đọng lại hôm nay</div>
+
+      <div class="lesson-group">
+        <div class="lesson-label">📌 Bài học #1 — Điều tôi đã làm tốt hôm nay:</div>
+        <textarea id="lesson1" rows="3"
+          placeholder="VD: Tôi đã kiểm soát được bản thân, không lướt quá 30 phút Shorts..."></textarea>
+      </div>
+
+      <div class="lesson-group">
+        <div class="lesson-label">🔧 Bài học #2 — Điều tôi muốn cải thiện ngày mai:</div>
+        <textarea id="lesson2" rows="3"
+          placeholder="VD: Ngày mai tôi sẽ tắt YouTube trước 20h và đọc sách thay thế..."></textarea>
+      </div>
+
+      <!-- Đánh giá ngày -->
+      <div class="rating-row">
+        <div class="rating-label">Đánh giá ngày hôm nay:</div>
+        <div class="rating-stars" id="rating-stars">
+          <span class="star" data-val="1">⭐</span>
+          <span class="star" data-val="2">⭐</span>
+          <span class="star" data-val="3">⭐</span>
+          <span class="star" data-val="4">⭐</span>
+          <span class="star" data-val="5">⭐</span>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="btn-save-reflection">💾 Lưu Nhật Ký Phản Tư & Nhận Phản Hồi AI</button>
+      <div class="saved-toast" id="save-toast">✅ Đã lưu thành công! Đang kết nối Trợ lý AI... 🌟</div>
+    </div>
+
+    <!-- AI Reflection Coach Card (Giai đoạn 4) -->
+    <div class="card card-ai" id="card-ai-coach">
+      <div class="card-title" style="color:#C4B5FD;">🤖 Trợ lý AI Phản Tư (Mindful Coach)</div>
+      
+      <div id="ai-coach-status" style="font-size:12px; color:var(--muted); margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+        <span>✨ Nhập bài học và bấm [Lưu Nhật Ký] ở trên để nhận lời khuyên thấu cảm từ Gemini AI.</span>
+      </div>
+
+      <div id="ai-content-area" style="display:none;">
+        <div class="ai-feedback-box" id="ai-coach-feedback">
+          <!-- Phản hồi AI an toàn sẽ được gán qua textContent -->
+        </div>
+
+        <div id="ai-reminded-section" style="margin-bottom:14px; display:none;">
+          <div style="font-size:11px; font-weight:700; color:#10B981; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">
+            💡 Video bổ ích hôm nay bạn đã xem trọn vẹn:
+          </div>
+          <div id="ai-reminded-videos"></div>
+        </div>
+
+        <div class="ai-mission-box" id="ai-mission-box" style="display:none;">
+          <span style="font-size:16px;">🎯</span>
+          <div>
+            <div style="font-size:11px; font-weight:700; color:#38BDF8; text-transform:uppercase;">Sứ mệnh vi mô ngày mai:</div>
+            <div id="ai-tomorrow-mission" style="font-size:13px; font-weight:600; color:#F8FAFC; margin-top:2px;">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Self-evolving Static Filter Card (Giai đoạn 4) -->
+    <div class="card" id="card-evolve-filter">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <div class="card-title" style="margin-bottom:0;">🧬 AI Đề xuất Từ khóa cho Bộ Lọc Tĩnh</div>
+        <button id="btn-trigger-evolve" style="background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.4); color:#A78BFA; font-size:11px; font-weight:600; padding:4px 10px; border-radius:6px; cursor:pointer;">
+          ⚡ Quét Video Chưa Khớp
+        </button>
+      </div>
+      <div style="font-size:12px; color:var(--muted); margin-bottom:14px;">
+        AI tự động trích xuất các chủ đề/từ khóa xuất hiện nhiều trong ngày để bạn nâng cấp bộ lọc tĩnh không tốn token:
+      </div>
+      <div id="suggested-keywords-list">
+        <div class="empty">Chưa có đề xuất từ khóa mới. Bấm "Quét Video Chưa Khớp" để AI phân tích.</div>
+      </div>
+    </div>
+
+    <!-- Long-term Persona Card (Giai đoạn 4) -->
+    <div class="card">
+      <div class="card-title">🌟 Hồ Sơ Kiên Trì Đường Dài (User Persona)</div>
+      <div class="persona-grid">
+        <div class="stat-box">
+          <div class="stat-value" id="persona-tracked-days" style="color:var(--cyan)">0</div>
+          <div class="stat-label">📅 Ngày kiên trì</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" id="persona-streak" style="color:var(--amber)">0 🔥</div>
+          <div class="stat-label">🔥 Chuỗi Focus</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-value" id="persona-avg-useful" style="color:var(--green)">0%</div>
+          <div class="stat-label">📈 % Hữu ích TB</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="reflection.js"></script>
+</body>
+
+</html>

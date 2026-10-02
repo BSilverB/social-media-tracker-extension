@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>Mindful Social Tracker</title>
+  <style>
+    :root {
+      --bg-main: #0B0F19;
+      --bg-card: rgba(22, 30, 49, 0.7);
+      --bg-card-hover: rgba(30, 41, 67, 0.85);
+      --border-card: rgba(255, 255, 255, 0.08);
+      --accent-purple: #8B5CF6;
+      --accent-purple-glow: rgba(139, 92, 246, 0.25);
+      --accent-cyan: #06B6D4;
+      --accent-amber: #F59E0B;
+      --accent-red: #EF4444;
+      --accent-green: #10B981;
+      --text-primary: #F8FAFC;
+      --text-secondary: #94A3B8;
+      --text-muted: #64748B;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      width: 380px;
+      max-height: 580px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg-main);
+      color: var(--text-primary);
+      padding: 16px;
+      user-select: none;
+    }
+
+    /* Scrollbar */
+    body::-webkit-scrollbar {
+      width: 5px;
+    }
+    body::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+    }
+    body::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .app-icon {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, #6366F1, #8B5CF6);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      box-shadow: 0 2px 10px var(--accent-purple-glow);
+    }
+    .app-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      color: #fff;
+    }
+    .date-badge {
+      font-size: 11px;
+      color: var(--text-secondary);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 3px 8px;
+      border-radius: 12px;
+      border: 1px solid var(--border-card);
+    }
+
+    /* Tabs */
+    .tabs-nav {
+      display: flex;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 3px;
+      border-radius: 10px;
+      gap: 3px;
+      margin-bottom: 14px;
+      border: 1px solid var(--border-card);
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 6px 0;
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+    .tab-btn:hover {
+      color: #fff;
+    }
+    .tab-btn.active {
+      background: var(--accent-purple);
+      color: #fff;
+      box-shadow: 0 2px 8px var(--accent-purple-glow);
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+      backdrop-filter: blur(10px);
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+    .card:hover {
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .card-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Time Stats Bar */
+    .time-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .time-box {
+      background: rgba(0, 0, 0, 0.25);
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .time-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+    }
+    .time-value {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .val-active { color: var(--accent-cyan); }
+    .val-passive { color: var(--text-muted); }
+
+    .ratio-bar-container {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+      overflow: hidden;
+      display: flex;
+      margin-top: 4px;
+    }
+    .ratio-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #06B6D4, #3B82F6);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    /* Grid Stats */
+    .stat-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .stat-grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+    }
+    .metric-pill {
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 8px;
+      padding: 8px 6px;
+      text-align: center;
+    }
+    .metric-number {
+      font-size: 16px;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+    .metric-name {
+      font-size: 10px;
+      color: var(--text-secondary);
+    }
+
+    /* Tag & Badges */
+    .badge-warn {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--accent-red);
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 600;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .badge-info {
+      background: rgba(6, 182, 212, 0.15);
+      color: var(--accent-cyan);
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .badge-cat {
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.06);
+      color: #CBD5E1;
+    }
+
+    /* Categories List */
+    .cat-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 0;
+      font-size: 11px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .cat-item:last-child {
+      border-bottom: none;
+    }
+    .cat-count {
+      font-weight: 700;
+      color: var(--accent-purple);
+    }
+
+    /* Recent List */
+    .recent-item {
+      padding: 6px 0;
+      font-size: 11px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .recent-item:last-child {
+      border-bottom: none;
+    }
+    .recent-title {
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 250px;
+    }
+    .recent-meta {
+      display: flex;
+      justify-content: space-between;
+      color: var(--text-muted);
+      font-size: 10px;
+      margin-top: 2px;
+    }
+
+    /* Footer */
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-card);
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    .btn-reset {
+      background: transparent;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #F87171;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-reset:hover {
+      background: rgba(239, 68, 68, 0.2);
+    }
+
+    /* Dev Test Mode */
+    .dev-btn {
+      padding: 6px 4px;
+      font-size: 10px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .dev-btn:hover {
+      filter: brightness(1.2);
+      transform: translateY(-1px);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="app-icon">🧠</div>
+      <div>
+        <div class="app-title">Mindful Tracker</div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:6px;">
+      <label style="display:flex; align-items:center; gap:4px; font-size:10px; color:#F59E0B; cursor:pointer; background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.3); padding:2px 6px; border-radius:10px;" title="Bật/Tắt Chế độ Test dành cho Developer">
+        <input type="checkbox" id="toggle-dev-mode" style="accent-color:#F59E0B; cursor:pointer;"> 🛠️ Dev
+      </label>
+      <button id="header-btn-dashboard" type="button" style="background:rgba(6,182,212,0.15); border:1px solid rgba(6,182,212,0.4); color:#67E8F9; border-radius:12px; font-size:10px; font-weight:700; padding:2px 8px; cursor:pointer;" title="Mở trang Báo Cáo Phân Tích Xu Hướng">📊 Báo Cáo</button>
+      <div id="today-badge" class="date-badge">2026-09-13</div>
+    </div>
+  </div>
+
+  <!-- Linh vật Pet & Focus Streak (Giai đoạn 4) -->
+  <div class="card" id="pet-banner" style="display:flex; align-items:center; justify-content:space-between; padding:10px 14px; margin-bottom:12px; background:linear-gradient(135deg, rgba(30, 41, 67, 0.75), rgba(15, 23, 42, 0.85)); border:1px solid rgba(139, 92, 246, 0.25);">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div id="popup-pet-avatar" style="line-height:0; filter:drop-shadow(0 2px 8px rgba(139,92,246,0.4));">
+        <!-- SVG Pet injected here -->
+      </div>
+      <div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="font-size:12px; font-weight:700; color:#fff;" id="popup-pet-name">Linh vật Đồng hành</span>
+          <span id="popup-pet-mood-badge" style="font-size:10px; padding:1px 6px; border-radius:10px; background:rgba(16,185,129,0.2); color:#10B981; font-weight:600;">✨ Tươi tỉnh</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; margin-top:3px;">
+          <span style="font-size:10px; color:var(--text-muted);">Năng lượng:</span>
+          <div style="width:65px; height:5px; background:rgba(255,255,255,0.12); border-radius:3px; overflow:hidden;">
+            <div id="popup-pet-energy-bar" style="width:85%; height:100%; background:linear-gradient(90deg, #10B981, #06B6D4); transition:width 0.4s ease;"></div>
+          </div>
+          <span id="popup-pet-energy-text" style="font-size:10px; font-weight:700; color:#06B6D4;">85%</span>
+        </div>
+      </div>
+    </div>
+    <div style="text-align:right;">
+      <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Chuỗi Focus</div>
+      <div style="font-size:16px; font-weight:800; color:#F59E0B; display:flex; align-items:center; justify-content:flex-end; gap:2px;">
+        <span>🔥</span><span id="popup-streak-days">0</span><span style="font-size:11px; font-weight:600; color:var(--text-secondary); margin-left:2px;">ngày</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Platform Switcher Tabs -->
+  <div class="tabs-nav">
+    <button class="tab-btn active" id="tab-yt" data-target="panel-yt">▶ YouTube</button>
+    <button class="tab-btn" id="tab-fb" data-target="panel-fb">👥 Facebook</button>
+    <button class="tab-btn" id="tab-all" data-target="panel-all">📊 Tổng quan</button>
+    <button class="tab-btn" id="tab-cfg" data-target="panel-cfg">⚙️ Cài đặt</button>
+    <button class="tab-btn" id="tab-dev" data-target="panel-dev" style="display: none; color:#F59E0B;">🛠️ Dev</button>
+  </div>
+
+  <!-- PANEL 1: YOUTUBE -->
+  <div id="panel-yt" class="tab-panel">
+    <!-- Time & Reload Card -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">⏱ Thời gian sử dụng YouTube</span>
+        <span id="yt-reload-badge" class="badge-warn">Reload: 0</span>
+      </div>
+      <div class="time-grid">
+        <div class="time-box">
+          <div class="time-label">Tập trung (Active)</div>
+          <div id="yt-active-time" class="time-value val-active">0m 0s</div>
+        </div>
+        <div class="time-box">
+          <div class="time-label">Nghỉ / Treo (Passive)</div>
+          <div id="yt-passive-time" class="time-value val-passive">0m 0s</div>
+        </div>
+      </div>
+      <div class="ratio-bar-container" title="Tỷ lệ thời gian tập trung chủ động">
+        <div id="yt-ratio-bar" class="ratio-bar-fill"></div>
+      </div>
+    </div>
+
+    <!-- YouTube Shorts Card -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📱 YouTube Shorts</span>
+        <span class="badge-info">Lướt nhanh</span>
+      </div>
+      <div class="stat-grid-3">
+        <div class="metric-pill">
+          <div class="metric-name">Tổng lướt</div>
+          <div id="yt-shorts-swipes" class="metric-number" style="color:#A78BFA">0</div>
+        </div>
+        <div class="metric-pill">
+          <div class="metric-name">Xem sâu (>2s)</div>
+          <div id="yt-shorts-valid" class="metric-number" style="color:#10B981">0</div>
+        </div>
+        <div class="metric-pill">
+          <div class="metric-name">Lặp lại (Loop)</div>
+          <div id="yt-shorts-loops" class="metric-number" style="color:#F59E0B">0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- YouTube Long Videos Card -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🎬 Video dài (/watch)</span>
+        <span id="yt-impulsive-rate-badge" class="badge-warn">Lướt vội: 0%</span>
+      </div>
+      <div class="stat-grid-2" style="margin-bottom:8px;">
+        <div class="metric-pill">
+          <div class="metric-name">Đã mở xem</div>
+          <div id="yt-long-total" class="metric-number" style="color:#38BDF8">0</div>
+        </div>
+        <div class="metric-pill">
+          <div class="metric-name">Bỏ ngang (&lt;15%)</div>
+          <div id="yt-long-impulsive" class="metric-number" style="color:#EF4444">0</div>
+        </div>
+      </div>
+      <div id="yt-recent-long-list">
+        <!-- Danh sách video dài gần đây -->
+      </div>
+    </div>
+
+    <!-- Content Categories Breakdown -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🏷 Phân loại nội dung</span>
+      </div>
+      <div id="yt-categories-list">
+        <!-- Danh mục video đã phân loại -->
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 2: FACEBOOK -->
+  <div id="panel-fb" class="tab-panel" style="display: none;">
+    <!-- Time & Reload Card -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">⏱ Thời gian Facebook</span>
+        <span id="fb-reload-badge" class="badge-warn">Reload: 0</span>
+      </div>
+      <div class="time-grid">
+        <div class="time-box">
+          <div class="time-label">Tập trung (Active)</div>
+          <div id="fb-active-time" class="time-value val-active">0m 0s</div>
+        </div>
+        <div class="time-box">
+          <div class="time-label">Nghỉ / Treo (Passive)</div>
+          <div id="fb-passive-time" class="time-value val-passive">0m 0s</div>
+        </div>
+      </div>
+      <div class="ratio-bar-container">
+        <div id="fb-ratio-bar" class="ratio-bar-fill"></div>
+      </div>
+    </div>
+
+    <!-- Feed & Scrolling Metrics -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📜 Hành vi Cuộn News Feed</span>
+        <span class="badge-info">Feed Unit</span>
+      </div>
+      <div class="stat-grid-2">
+        <div class="metric-pill">
+          <div class="metric-name">Bài viết đã cuộn qua</div>
+          <div id="fb-feed-scrolled" class="metric-number" style="color:#60A5FA">0</div>
+        </div>
+        <div class="metric-pill">
+          <div class="metric-name">Click Logo / F5</div>
+          <div id="fb-reloads" class="metric-number" style="color:#F59E0B">0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Facebook Reels Card -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🎥 Facebook Reels</span>
+      </div>
+      <div class="stat-grid-3">
+        <div class="metric-pill">
+          <div class="metric-name">Tổng lướt</div>
+          <div id="fb-reels-swipes" class="metric-number" style="color:#A78BFA">0</div>
+        </div>
+        <div class="metric-pill">
+          <div class="metric-name">Xem sâu (>2s)</div>
+          <div id="fb-reels-valid" class="metric-number" style="color:#10B981">0</div>
+        </div>
+        <div class="metric-pill">
+          <div class="metric-name">Lặp lại (Loop)</div>
+          <div id="fb-reels-loops" class="metric-number" style="color:#F59E0B">0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 3: TỔNG QUAN -->
+  <div id="panel-all" class="tab-panel" style="display: none;">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🌟 Tổng thời gian 2 nền tảng</span>
+      </div>
+      <div class="time-grid">
+        <div class="time-box">
+          <div class="time-label">Tổng thời gian Active</div>
+          <div id="total-active-time" class="time-value" style="color:#38BDF8">0m 0s</div>
+        </div>
+        <div class="time-box">
+          <div class="time-label">Tổng lượt tìm dopamine (F5)</div>
+          <div id="total-reloads" class="time-value" style="color:#EF4444">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">⚡ Tổng số Shorts & Reels đã lướt</span>
+      </div>
+      <div class="stat-grid-2">
+        <div class="metric-pill">
+          <div class="metric-name">Tổng video ngắn lướt</div>
+          <div id="total-swipes-all" class="metric-number" style="color:#A78BFA">0</div>
+        </div>
+        <div class="metric-pill">
+          <div class="metric-name">Tổng vòng lặp vô thức (Loop)</div>
+          <div id="total-loops-all" class="metric-number" style="color:#F59E0B">0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 4: CÀI ĐẶT & CẢNH BÁO (GIAI ĐOẠN 2 & 4) -->
+  <div id="panel-cfg" class="tab-panel" style="display: none;">
+    <!-- Google Gemini AI Key Card (Giai đoạn 4) -->
+    <div class="card" style="border: 1px solid rgba(139, 92, 246, 0.4); background: rgba(139, 92, 246, 0.08);">
+      <div class="card-header">
+        <span class="card-title" style="color: #C4B5FD;">🤖 Trợ lý AI Google Gemini</span>
+        <span class="badge-info" style="background: rgba(139, 92, 246, 0.25); color: #C4B5FD;">Free Tier</span>
+      </div>
+      <div style="font-size:10px; color:var(--text-secondary); margin-bottom:8px;">
+        Tận dụng Gemini 1.5 Flash miễn phí để phân loại video Lớp 2, trích xuất từ khóa tự tiến hóa và AI Reflection Coach lúc 22h00.
+      </div>
+      <div style="display:flex; gap:6px; margin-bottom:6px;">
+        <input type="password" id="cfg-gemini-key" placeholder="Nhập Google Gemini API Key..." style="flex:1; background:rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px; padding:6px 8px; font-size:11px; font-family:monospace;">
+        <button id="btn-toggle-key-visibility" type="button" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#94A3B8; border-radius:6px; padding:0 8px; cursor:pointer; font-size:12px;" title="Ẩn/Hiện Key">👁️</button>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" style="font-size:10px; color:#A78BFA; text-decoration:none;">🔗 Lấy API Key tại Google AI Studio</a>
+        <button id="btn-test-gemini-key" type="button" style="background:rgba(139,92,246,0.25); border:1px solid rgba(139,92,246,0.5); color:#C4B5FD; font-size:10px; font-weight:600; padding:4px 8px; border-radius:6px; cursor:pointer;">⚡ Test Key</button>
+      </div>
+      <div id="cfg-gemini-status" style="font-size:10px; margin-top:6px; display:none;"></div>
+    </div>
+
+    <!-- Card Cấu hình Linh vật Pet (3 Chế Độ: Default, Puppet, AI Chibi) -->
+    <div class="card" style="border: 1px solid rgba(6, 182, 212, 0.4); background: rgba(6, 182, 212, 0.06);">
+      <div class="card-header">
+        <span class="card-title" style="color: #67E8F9;">🐾 Linh Vật Đồng Hành (3 Chế Độ)</span>
+        <span class="badge-info" style="background: rgba(6, 182, 212, 0.2); color: #67E8F9;">Gamification</span>
+      </div>
+
+      <!-- Mode Selector -->
+      <div style="font-size:10px; color:var(--text-secondary); margin-bottom:6px;">Chọn chế độ hiển thị linh vật:</div>
+      <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:6px; margin-bottom:10px;">
+        <label class="pet-mode-option" style="display:flex; flex-direction:column; align-items:center; padding:8px 4px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:8px; cursor:pointer; text-align:center; transition:all 0.2s;">
+          <input type="radio" name="pet-mode" value="default" checked style="margin-bottom:4px; accent-color:#06B6D4;">
+          <span style="font-size:14px;">🌱</span>
+          <span style="font-size:10px; font-weight:700; color:#F8FAFC;">Mặc định</span>
+          <span style="font-size:9px; color:var(--text-muted);">Sprout SVG</span>
+        </label>
+        <label class="pet-mode-option" style="display:flex; flex-direction:column; align-items:center; padding:8px 4px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:8px; cursor:pointer; text-align:center; transition:all 0.2s;">
+          <input type="radio" name="pet-mode" value="puppet" style="margin-bottom:4px; accent-color:#06B6D4;">
+          <span style="font-size:14px;">🎭</span>
+          <span style="font-size:10px; font-weight:700; color:#F8FAFC;">Khung Puppet</span>
+          <span style="font-size:9px; color:var(--text-muted);">Ghép mặt offline</span>
+        </label>
+        <label class="pet-mode-option" style="display:flex; flex-direction:column; align-items:center; padding:8px 4px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:8px; cursor:pointer; text-align:center; transition:all 0.2s;">
+          <input type="radio" name="pet-mode" value="ai_generated" style="margin-bottom:4px; accent-color:#06B6D4;">
+          <span style="font-size:14px;">✨</span>
+          <span style="font-size:10px; font-weight:700; color:#F8FAFC;">AI Chibi</span>
+          <span style="font-size:9px; color:var(--text-muted);">Sinh 1 lần</span>
+        </label>
+      </div>
+
+      <!-- Upload Section (for puppet & ai_generated) -->
+      <div id="pet-upload-section" style="margin-bottom:10px;">
+        <label style="font-size:10px; color:var(--text-secondary); display:block; margin-bottom:4px;">
+          Tải ảnh cá nhân cho Khung Puppet (3 Trạng thái cảm xúc):
+        </label>
+        <div style="font-size:9.5px; color:var(--text-muted); margin-bottom:8px;">
+          Tải riêng từng biểu cảm. Nếu chỉ tải 1 ảnh, hệ thống tự động dùng chung cho cả 3 trạng thái.
+        </div>
+        
+        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; text-align:center;">
+          <!-- Slot Happy -->
+          <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(16,185,129,0.3); border-radius:10px; padding:6px 4px;">
+            <div style="position:relative; width:46px; height:46px; margin:0 auto 4px; border-radius:50%; border:2px dashed #10B981; overflow:hidden; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.4); cursor:pointer;" id="slot-trigger-happy">
+              <img id="pet-crop-happy-preview" src="" style="width:100%; height:100%; object-fit:cover; display:none;" alt="Happy">
+              <span id="pet-crop-happy-placeholder" style="font-size:14px;">🌸</span>
+            </div>
+            <div style="font-size:10px; font-weight:700; color:#10B981;">Vui vẻ</div>
+            <div style="font-size:8.5px; color:var(--text-muted);">≥ 70⚡</div>
+            <input type="file" id="pet-img-happy-file" accept="image/*" style="display:none;">
+            <button type="button" class="btn-clear-puppet-slot" data-slot="happy" style="background:none; border:none; color:#EF4444; font-size:9px; cursor:pointer; margin-top:2px;">Xóa</button>
+          </div>
+
+          <!-- Slot Neutral -->
+          <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(6,182,212,0.3); border-radius:10px; padding:6px 4px;">
+            <div style="position:relative; width:46px; height:46px; margin:0 auto 4px; border-radius:50%; border:2px dashed #06B6D4; overflow:hidden; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.4); cursor:pointer;" id="slot-trigger-neutral">
+              <img id="pet-crop-neutral-preview" src="" style="width:100%; height:100%; object-fit:cover; display:none;" alt="Neutral">
+              <span id="pet-crop-neutral-placeholder" style="font-size:14px;">🍃</span>
+            </div>
+            <div style="font-size:10px; font-weight:700; color:#06B6D4;">Bình thường</div>
+            <div style="font-size:8.5px; color:var(--text-muted);">40-69⚡</div>
+            <input type="file" id="pet-img-neutral-file" accept="image/*" style="display:none;">
+            <button type="button" class="btn-clear-puppet-slot" data-slot="neutral" style="background:none; border:none; color:#EF4444; font-size:9px; cursor:pointer; margin-top:2px;">Xóa</button>
+          </div>
+
+          <!-- Slot Sad -->
+          <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(239,68,68,0.3); border-radius:10px; padding:6px 4px;">
+            <div style="position:relative; width:46px; height:46px; margin:0 auto 4px; border-radius:50%; border:2px dashed #EF4444; overflow:hidden; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.4); cursor:pointer;" id="slot-trigger-sad">
+              <img id="pet-crop-sad-preview" src="" style="width:100%; height:100%; object-fit:cover; display:none;" alt="Sad">
+              <span id="pet-crop-sad-placeholder" style="font-size:14px;">🌧️</span>
+            </div>
+            <div style="font-size:10px; font-weight:700; color:#EF4444;">Mệt mỏi</div>
+            <div style="font-size:8.5px; color:var(--text-muted);">&lt; 40⚡</div>
+            <input type="file" id="pet-img-sad-file" accept="image/*" style="display:none;">
+            <button type="button" class="btn-clear-puppet-slot" data-slot="sad" style="background:none; border:none; color:#EF4444; font-size:9px; cursor:pointer; margin-top:2px;">Xóa</button>
+          </div>
+        </div>
+
+        <!-- Hidden legacy file input for AI / backwards compatibility -->
+        <input type="file" id="pet-image-file" accept="image/*" style="display:none;">
+      </div>
+
+      <!-- AI Chibi Action Area -->
+      <div id="pet-ai-section" style="display:none; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.1);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <span style="font-size:10px; color:#A78BFA; font-weight:700;">Bộ Sprite AI (Happy, Neutral, Sad):</span>
+          <button id="btn-generate-ai-pet" type="button" style="background:linear-gradient(135deg, #8B5CF6, #6366F1); border:none; color:#fff; font-size:10px; font-weight:700; padding:4px 10px; border-radius:6px; cursor:pointer;">
+            ⚡ Tạo Avatar AI
+          </button>
+        </div>
+        <div id="pet-ai-status" style="font-size:10px; margin-bottom:6px; display:none;"></div>
+        <!-- 3 Sprites preview -->
+        <div id="pet-ai-sprites-preview" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; text-align:center;">
+          <div style="background:rgba(0,0,0,0.25); padding:4px; border-radius:6px;">
+            <div id="sprite-happy-preview" style="width:36px; height:36px; margin:0 auto; display:flex; align-items:center; justify-content:center;">😊</div>
+            <div style="font-size:9px; color:#10B981; margin-top:2px;">Happy</div>
+          </div>
+          <div style="background:rgba(0,0,0,0.25); padding:4px; border-radius:6px;">
+            <div id="sprite-neutral-preview" style="width:36px; height:36px; margin:0 auto; display:flex; align-items:center; justify-content:center;">😐</div>
+            <div style="font-size:9px; color:#06B6D4; margin-top:2px;">Neutral</div>
+          </div>
+          <div style="background:rgba(0,0,0,0.25); padding:4px; border-radius:6px;">
+            <div id="sprite-sad-preview" style="width:36px; height:36px; margin:0 auto; display:flex; align-items:center; justify-content:center;">😢</div>
+            <div style="font-size:9px; color:#EF4444; margin-top:2px;">Sad</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tủ Đồ Phụ Kiện (Streak Wardrobe) -->
+      <div style="margin-top:10px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.1);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <span style="font-size:10px; color:#FCD34D; font-weight:700;">👑 Tủ Đồ Phụ Kiện (Mở Khóa Theo Streak)</span>
+          <span id="pet-wardrobe-streak-badge" style="font-size:9px; color:#F59E0B; background:rgba(245,158,11,0.15); padding:2px 6px; border-radius:10px;">🔥 0 ngày</span>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+          <!-- Item 1: Kính Râm -->
+          <div id="item-sunglasses-card" style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:6px 8px; display:flex; flex-direction:column; justify-content:space-between;">
+            <div>
+              <div style="display:flex; align-items:center; justify-content:space-between;">
+                <span style="font-size:12px;">🕶️ Kính Râm</span>
+                <span style="font-size:9px; color:#38BDF8; font-weight:600;">Streak ≥ 3d</span>
+              </div>
+              <div style="font-size:9px; color:var(--text-muted); margin-top:2px;">Phong cách cực ngầu</div>
+            </div>
+            <button id="btn-toggle-sunglasses" type="button" style="margin-top:6px; font-size:10px; font-weight:700; padding:4px 0; border-radius:5px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:#94A3B8; cursor:pointer; width:100%;">
+              🔒 Chưa mở khóa
+            </button>
+          </div>
+
+          <!-- Item 2: Vòng Nguyệt Quế -->
+          <div id="item-laurel-card" style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:6px 8px; display:flex; flex-direction:column; justify-content:space-between;">
+            <div>
+              <div style="display:flex; align-items:center; justify-content:space-between;">
+                <span style="font-size:12px;">🌿 Nguyệt Quế</span>
+                <span style="font-size:9px; color:#FBBF24; font-weight:600;">Streak ≥ 7d</span>
+              </div>
+              <div style="font-size:9px; color:var(--text-muted); margin-top:2px;">Vinh quang kiên trì</div>
+            </div>
+            <button id="btn-toggle-laurel" type="button" style="margin-top:6px; font-size:10px; font-weight:700; padding:4px 0; border-radius:5px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.05); color:#94A3B8; cursor:pointer; width:100%;">
+              🔒 Chưa mở khóa
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Form Custom Mốc Cảnh Báo YouTube -->
+    <div class="card" style="border-left: 3px solid #EF4444;">
+      <div class="card-header">
+        <span class="card-title" style="color:#FCA5A5;">🔴 Mốc Giới Hạn YouTube</span>
+      </div>
+      <!-- Shorts -->
+      <div style="font-size:10px; font-weight:700; color:#CBD5E1; margin-bottom:4px;">YouTube Shorts (Lượt lướt):</div>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px;">
+        <div>
+          <label style="font-size:9.5px; color:#10B981; font-weight:bold;">Mốc 1</label>
+          <input type="number" id="cfg-yt-shorts-m1" value="15" min="1" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:12px; margin-top:2px;">
+        </div>
+        <div>
+          <label style="font-size:9.5px; color:#F59E0B; font-weight:bold;">Mốc 2</label>
+          <input type="number" id="cfg-yt-shorts-m2" value="30" min="2" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:12px; margin-top:2px;">
+        </div>
+        <div>
+          <label style="font-size:9.5px; color:#EF4444; font-weight:bold;">Mốc 3</label>
+          <input type="number" id="cfg-yt-shorts-m3" value="45" min="3" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:12px; margin-top:2px;">
+        </div>
+      </div>
+      <!-- Long Video -->
+      <div style="font-size:10px; font-weight:700; color:#CBD5E1; margin-bottom:4px;">Video dài (/watch - số video):</div>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 4px;">
+        <div>
+          <label style="font-size:9.5px; color:#10B981; font-weight:bold;">Mốc 1</label>
+          <input type="number" id="cfg-yt-long-m1" value="3" min="1" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:12px; margin-top:2px;">
+        </div>
+        <div>
+          <label style="font-size:9.5px; color:#F59E0B; font-weight:bold;">Mốc 2</label>
+          <input type="number" id="cfg-yt-long-m2" value="5" min="2" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:12px; margin-top:2px;">
+        </div>
+        <div>
+          <label style="font-size:9.5px; color:#EF4444; font-weight:bold;">Mốc 3</label>
+          <input type="number" id="cfg-yt-long-m3" value="8" min="3" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:12px; margin-top:2px;">
+        </div>
+      </div>
+    </div>
+
+    <!-- Form Custom Mốc Cảnh Báo Facebook -->
+    <div class="card" style="border-left: 3px solid #3B82F6;">
+      <div class="card-header">
+        <span class="card-title" style="color:#93C5FD;">🔵 Mốc Giới Hạn Facebook</span>
+      </div>
+      <!-- Reels -->
+      <div style="font-size:10px; font-weight:700; color:#CBD5E1; margin-bottom:4px;">FB Reels (Lượt lướt):</div>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px;">
+        <div>
+          <label style="font-size:9.5px; color:#10B981; font-weight:bold;">Mốc 1</label>
+          <input type="number" id="cfg-fb-reels-m1" value="15" min="1" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:12px; margin-top:2px;">
+        </div>
+        <div>
+          <label style="font-size:9.5px; color:#F59E0B; font-weight:bold;">Mốc 2</label>
+          <input type="number" id="cfg-fb-reels-m2" value="30" min="2" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:12px; margin-top:2px;">
+        </div>
+        <div>
+          <label style="font-size:9.5px; color:#EF4444; font-weight:bold;">Mốc 3</label>
+          <input type="number" id="cfg-fb-reels-m3" value="45" min="3" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:12px; margin-top:2px;">
+        </div>
+      </div>
+      <!-- Feeds -->
+      <div style="font-size:10px; font-weight:700; color:#CBD5E1; margin-bottom:4px;">News Feed (Số bài viết cuộn qua):</div>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px;">
+        <div>
+          <label style="font-size:9.5px; color:#10B981; font-weight:bold;">Mốc 1</label>
+          <input type="number" id="cfg-fb-feeds-m1" value="20" min="1" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:12px; margin-top:2px;">
+        </div>
+        <div>
+          <label style="font-size:9.5px; color:#F59E0B; font-weight:bold;">Mốc 2</label>
+          <input type="number" id="cfg-fb-feeds-m2" value="40" min="2" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:12px; margin-top:2px;">
+        </div>
+        <div>
+          <label style="font-size:9.5px; color:#EF4444; font-weight:bold;">Mốc 3</label>
+          <input type="number" id="cfg-fb-feeds-m3" value="60" min="3" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:12px; margin-top:2px;">
+        </div>
+      </div>
+      <!-- Facebook Video Dài -->
+      <div style="font-size:10px; font-weight:700; color:#CBD5E1; margin-bottom:4px;">Video FB Watch (Số video):</div>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 4px;">
+        <div>
+          <label style="font-size:9.5px; color:#10B981; font-weight:bold;">Mốc 1</label>
+          <input type="number" id="cfg-fb-long-m1" value="2" min="1" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:12px; margin-top:2px;">
+        </div>
+        <div>
+          <label style="font-size:9.5px; color:#F59E0B; font-weight:bold;">Mốc 2</label>
+          <input type="number" id="cfg-fb-long-m2" value="4" min="2" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:12px; margin-top:2px;">
+        </div>
+        <div>
+          <label style="font-size:9.5px; color:#EF4444; font-weight:bold;">Mốc 3</label>
+          <input type="number" id="cfg-fb-long-m3" value="6" min="3" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:12px; margin-top:2px;">
+        </div>
+      </div>
+    </div>
+
+    <!-- Master Goal -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🎯 Mục tiêu Lớn (Master Goal)</span>
+      </div>
+      <input type="text" id="cfg-master-goal" placeholder="VD: Muốn trở thành phiên bản tốt hơn để gặp người ấy" style="width:100%; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:6px 8px; font-size:11px;">
+    </div>
+
+    <!-- Personal Emotional Anchor Image -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🖼 Tấm ảnh Cá nhân (Mỏ neo Cảm xúc)</span>
+      </div>
+      <div style="margin-bottom:8px;">
+        <label style="font-size:10px; color:var(--text-secondary); display:block; margin-bottom:4px;">Chọn ảnh từ máy tính (Tự động nén):</label>
+        <input type="file" id="cfg-img-file" accept="image/*" style="font-size:11px; color:var(--text-secondary); width:100%;">
+      </div>
+      <div style="margin-bottom:8px;">
+        <label style="font-size:10px; color:var(--text-secondary); display:block; margin-bottom:2px;">Hoặc nhập URL ảnh trực tiếp:</label>
+        <input type="text" id="cfg-img-url" placeholder="https://..." style="width:100%; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:5px 8px; font-size:11px;">
+      </div>
+      <!-- Image Preview -->
+      <div style="text-align:center; margin-top:8px;">
+        <div style="font-size:10px; color:var(--text-muted); margin-bottom:4px;">Xem trước ảnh mỏ neo:</div>
+        <img id="cfg-img-preview" src="" style="max-width:100%; max-height:120px; border-radius:8px; border:1px solid rgba(139,92,246,0.5); display:none; margin:0 auto; object-fit:cover;">
+        <span id="cfg-img-placeholder" style="font-size:10px; color:#64748B; font-style:italic;">Chưa có ảnh nào được tải lên</span>
+      </div>
+    </div>
+
+    <!-- Pomodoro Settings Card -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🍅 Chế độ Pomodoro</span>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <span style="font-size:10px;color:var(--text-secondary);">Bật</span>
+          <input type="checkbox" id="cfg-pomodoro-enabled" style="width:14px;height:14px;cursor:pointer;accent-color:#8B5CF6;">
+        </label>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div>
+          <label style="font-size:10px;color:#A78BFA;font-weight:bold;">Focus (phút)</label>
+          <input type="number" id="cfg-pomodoro-focus" value="25" min="5" max="120"
+            style="width:100%;box-sizing:border-box;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;padding:4px 6px;font-size:12px;margin-top:2px;">
+        </div>
+        <div>
+          <label style="font-size:10px;color:#06B6D4;font-weight:bold;">Break (phút)</label>
+          <input type="number" id="cfg-pomodoro-break" value="5" min="1" max="30"
+            style="width:100%;box-sizing:border-box;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;padding:4px 6px;font-size:12px;margin-top:2px;">
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:6px;">Khi đang Break Session: Overlay và cảnh báo bị vô hiệu hóa.</div>
+    </div>
+
+    <!-- Keyword Target List Card -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🔑 Từ khóa Mục tiêu</span>
+      </div>
+      <div style="font-size:10px;color:var(--text-secondary);margin-bottom:6px;">Nhập các từ khóa nội dung muốn ưu tiên (mỗi từ 1 dòng). Nội dung khớp được đánh dấu hữu ích.</div>
+      <textarea id="cfg-keywords" rows="4" placeholder="lập trình
+tiếng anh
+phát triển bản thân
+tài chính" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:8px;padding:8px;font-size:12px;resize:vertical;outline:none;font-family:inherit;"></textarea>
+    </div>
+
+    <!-- Save Config Button & Notification Toast -->
+    <div style="margin-bottom:10px;">
+      <button id="btn-save-cfg" style="width:100%; background:linear-gradient(135deg, #10B981, #059669); border:none; color:#fff; font-weight:700; padding:8px 0; border-radius:8px; cursor:pointer; font-size:12px; box-shadow:0 2px 10px rgba(16,185,129,0.3);">
+        💾 Lưu Cài đặt & Cấu hình
+      </button>
+      <div id="cfg-save-toast" style="display:none; text-align:center; font-size:11px; color:#10B981; font-weight:bold; margin-top:6px;">✓ Đã lưu cấu hình thành công!</div>
+    </div>
+  </div>
+
+  <!-- PANEL 5: CHẾ ĐỘ TEST CHO DEV -->
+  <div id="panel-dev" class="tab-panel" style="display: none;">
+    <!-- Card 1: Năng Lượng Pet Simulation -->
+    <div class="card" style="border: 1px solid rgba(245,158,11,0.4); background: rgba(245,158,11,0.06);">
+      <div class="card-header">
+        <span class="card-title" style="color: #FBBF24;">⚡ Năng lượng Pet (Simulation)</span>
+        <span id="dev-energy-val" style="font-size:11px; font-weight:700; color:#FBBF24;">100%</span>
+      </div>
+      <div style="font-size:10px; color:var(--text-secondary); margin-bottom:8px;">
+        Thử nghiệm các mốc năng lượng: &lt;15⚡ (Ép Grayscale), &lt;10⚡ (Chặn gia hạn), 0⚡ (Kiệt sức, reset streak).
+      </div>
+      <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:6px; margin-bottom:10px;">
+        <button id="dev-btn-energy-0" type="button" class="dev-btn" style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); color:#FCA5A5;">0⚡ Kiệt sức</button>
+        <button id="dev-btn-energy-10" type="button" class="dev-btn" style="background:rgba(245,158,11,0.2); border:1px solid rgba(245,158,11,0.5); color:#FCD34D;">10⚡ Nguy cấp</button>
+        <button id="dev-btn-energy-50" type="button" class="dev-btn" style="background:rgba(59,130,246,0.2); border:1px solid rgba(59,130,246,0.5); color:#93C5FD;">50⚡ Trung bình</button>
+        <button id="dev-btn-energy-100" type="button" class="dev-btn" style="background:rgba(16,185,129,0.2); border:1px solid rgba(16,185,129,0.5); color:#6EE7B7;">100⚡ Tối đa</button>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:10px; color:var(--text-muted);">Tùy chỉnh:</span>
+        <input type="range" id="dev-slider-energy" min="0" max="100" value="100" style="flex:1; accent-color:#F59E0B; cursor:pointer;">
+      </div>
+    </div>
+
+    <!-- Card 2: Phiên Lướt & Mục Tiêu -->
+    <div class="card" style="border: 1px solid rgba(139,92,246,0.4); background: rgba(139,92,246,0.06);">
+      <div class="card-header">
+        <span class="card-title" style="color: #C4B5FD;">🎯 Phiên Lướt & Mục Tiêu</span>
+      </div>
+      <div style="font-size:10px; color:var(--text-secondary); margin-bottom:8px;">
+        Kích hoạt thông báo hết giờ phiên lướt hoặc kiểm tra giao diện hỏi mục tiêu có ảnh người thương.
+      </div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+        <button id="dev-btn-expire-session" type="button" class="dev-btn" style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); color:#FCA5A5;">⏱️ Hết giờ phiên ngay</button>
+        <button id="dev-btn-open-intent" type="button" class="dev-btn" style="background:rgba(139,92,246,0.2); border:1px solid rgba(139,92,246,0.5); color:#C4B5FD;">🎯 Hiện khung Mục tiêu</button>
+      </div>
+    </div>
+
+    <!-- Card 3: Mốc Cảnh Báo & Ma Sát (Milestones) -->
+    <div class="card" style="border: 1px solid rgba(6,182,212,0.4); background: rgba(6,182,212,0.06);">
+      <div class="card-header">
+        <span class="card-title" style="color: #67E8F9;">🔔 Mốc Cảnh Báo & Ma Sát</span>
+      </div>
+      <div style="font-size:10px; color:var(--text-secondary); margin-bottom:8px;">
+        Kích hoạt ngay các cấp độ cảnh báo để kiểm tra Pet Toast và Pet Center Modal:
+      </div>
+      <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:6px;">
+        <button id="dev-btn-trigger-m1" type="button" class="dev-btn" style="background:rgba(245,158,11,0.2); border:1px solid rgba(245,158,11,0.5); color:#FCD34D;">🔔 Mốc 1 (Toast Pet)</button>
+        <button id="dev-btn-trigger-m2" type="button" class="dev-btn" style="background:rgba(249,115,22,0.2); border:1px solid rgba(249,115,22,0.5); color:#FDBA74;">⚠️ Mốc 2 (Modal 10s)</button>
+        <button id="dev-btn-trigger-m3" type="button" class="dev-btn" style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); color:#FCA5A5;">🚫 Mốc 3 (Modal Chặn)</button>
+        <button id="dev-btn-trigger-f5" type="button" class="dev-btn" style="background:rgba(168,85,247,0.2); border:1px solid rgba(168,85,247,0.5); color:#D8B4FE;">⚡ F5 Spam (Toast)</button>
+      </div>
+    </div>
+
+    <!-- Card 4: Chuỗi Focus Streak & Trang Phục -->
+    <div class="card" style="border: 1px solid rgba(16,185,129,0.4); background: rgba(16,185,129,0.06);">
+      <div class="card-header">
+        <span class="card-title" style="color: #6EE7B7;">🔥 Chuỗi Focus Streak</span>
+      </div>
+      <div style="font-size:10px; color:var(--text-secondary); margin-bottom:8px;">
+        Thay đổi chuỗi ngày liên tiếp để kiểm tra mở khóa trang phục Pet (Mũ cử nhân, Vương miện):
+      </div>
+      <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:6px;">
+        <button id="dev-btn-streak-0" type="button" class="dev-btn" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:#94A3B8;">0 Ngày</button>
+        <button id="dev-btn-streak-3" type="button" class="dev-btn" style="background:rgba(16,185,129,0.2); border:1px solid rgba(16,185,129,0.5); color:#6EE7B7;">🎓 3 Ngày</button>
+        <button id="dev-btn-streak-7" type="button" class="dev-btn" style="background:rgba(245,158,11,0.2); border:1px solid rgba(245,158,11,0.5); color:#FCD34D;">👑 7 Ngày</button>
+      </div>
+    </div>
+
+    <!-- Card 5: Hệ Thống & Reset -->
+    <div class="card" style="border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.02);">
+      <div class="card-header">
+        <span class="card-title">⚙️ Hệ Thống & Reset Dữ Liệu Test</span>
+      </div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-bottom:8px;">
+        <button id="dev-btn-reflection-22h" type="button" class="dev-btn" style="background:rgba(139,92,246,0.25); border:1px solid rgba(139,92,246,0.5); color:#C4B5FD;">🌙 Kích hoạt Phản tư 22h</button>
+        <button id="dev-btn-toggle-pomodoro" type="button" class="dev-btn" style="background:rgba(6,182,212,0.25); border:1px solid rgba(6,182,212,0.5); color:#67E8F9;">🍅 Đổi Pomodoro Break</button>
+      </div>
+      <button id="dev-btn-reset-all" type="button" style="width:100%; padding:8px 0; background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.6); color:#FCA5A5; font-size:11px; font-weight:700; border-radius:6px; cursor:pointer;">
+        🔄 Khôi phục dữ liệu gốc (100⚡, 0 ngày streak, xóa log test)
+      </button>
+      <div id="dev-toast-msg" style="display:none; text-align:center; font-size:10px; color:#10B981; margin-top:6px; font-weight:bold;"></div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span>Lưu trữ 100% Offline</span>
+    <div style="display:flex;gap:6px;">
+      <button id="btn-open-dashboard" style="font-size:10px;padding:4px 8px;border-radius:6px;border:1px solid rgba(6,182,212,0.4);background:rgba(6,182,212,0.15);color:#67E8F9;cursor:pointer;">📊 Dashboard</button>
+      <button id="btn-open-reflection" style="font-size:10px;padding:4px 8px;border-radius:6px;border:1px solid rgba(139,92,246,0.4);background:rgba(139,92,246,0.15);color:#A78BFA;cursor:pointer;">📝 Phản Tư</button>
+      <button class="btn-reset" id="btn-reset-day">Xóa hôm nay</button>
+    </div>
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
