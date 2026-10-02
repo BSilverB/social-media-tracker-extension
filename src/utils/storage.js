@@ -40,6 +40,7 @@ export function createDefaultDayData() {
       reels: { totalSwipes: 0, validViews: 0, loopViews: 0 }
     },
     studyVideoLogs: [],
+    unclassifiedVideos: [],
     reflection: {
       lesson1: "",
       lesson2: "",

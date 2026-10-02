@@ -198,9 +198,12 @@ function renderAiCoach(coachResult) {
   if (statusEl) statusEl.style.display = "none";
   if (areaEl) areaEl.style.display = "block";
 
-  // 1. Phản hồi lời khuyên (Bảo mật: dùng textContent)
   if (feedbackEl) {
-    feedbackEl.textContent = coachResult.coachFeedback || "Hãy kiên định với mục tiêu của bạn!";
+    let text = coachResult.coachFeedback || "Hãy kiên định với mục tiêu của bạn!";
+    if (coachResult.suggestedClassification) {
+      text += `\n\n💡 Gợi ý phân loại: ${coachResult.suggestedClassification}`;
+    }
+    feedbackEl.textContent = text;
   }
 
   // 2. Video bổ ích được nhắc lại

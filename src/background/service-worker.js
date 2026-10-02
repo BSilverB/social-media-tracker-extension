@@ -249,6 +249,11 @@ function buildContextDigest(dayData) {
     .slice(0, 5)
     .map(v => v.title);
 
+  // Lấy danh sách video chưa phân loại được
+  const unclassifiedVideos = (dayData.unclassifiedVideos && dayData.unclassifiedVideos.length > 0)
+    ? dayData.unclassifiedVideos.slice(0, 10).map(v => v.title)
+    : allDetails.filter(v => v.category === "Khác").slice(0, 10).map(v => v.title);
+
   return {
     activeMinutes,
     usefulPct,
@@ -256,7 +261,8 @@ function buildContextDigest(dayData) {
     totalVideos: totalLong + ytShorts + fbReels,
     usefulVideos,
     musicVideos,
-    studyVideoLogs
+    studyVideoLogs,
+    unclassifiedVideos
   };
 }
 
@@ -383,7 +389,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         longVideos: { totalWatched: 0, impulsiveCount: 0, usefulCount: 0, details: [] },
         reels: { totalSwipes: 0, validViews: 0, loopViews: 0 }
       },
-      reflection: { lesson1: "", lesson2: "", rating: 5, submittedAt: null }
+      reflection: { lesson1: "", lesson2: "", rating: 5, submittedAt: null },
+      studyVideoLogs: [],
+      unclassifiedVideos: []
     };
     const cleanPetState = {
       energy: 100,

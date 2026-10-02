@@ -21,7 +21,11 @@ export class Tracker {
    * @param {Function} opts.getFocusMode - () => "music" | "study"
    * @param {Function} opts.onStudyCheckInNeeded - (videoId, title) => void
    */
-  constructor({ dayData, platformKey, isYT, isFB, onUpdate, onAction, onImpulsive, onUseful, getFocusMode, onStudyCheckInNeeded }) {
+    onUseful,
+    getFocusMode,
+    isPomodoroFocus,
+    onStudyCheckInNeeded
+  }) {
     this.dayData = dayData;
     this.platformKey = platformKey;
     this.isYT = isYT;
@@ -31,6 +35,7 @@ export class Tracker {
     this.onImpulsive = onImpulsive || (() => {});
     this.onUseful = onUseful || (() => {});
     this.getFocusMode = getFocusMode || (() => "music");
+    this.isPomodoroFocus = isPomodoroFocus || (() => false);
     this.onStudyCheckInNeeded = onStudyCheckInNeeded || null;
 
     this._lastUserActivity = Date.now();
@@ -260,14 +265,29 @@ export class Tracker {
       this._studyCheckInTimeout = null;
     }
 
-    // Nếu đang ở Chế độ Học tập (Study Focus), sau 10s xem nếu chưa phân loại được thì trigger check-in
-    if (this.getFocusMode() === "study") {
+    // TÁCH BẠCH RÕ RÀNG: Chỉ khi Pomodoro BẬT VÀ ở chu kỳ FOCUS VÀ Mode là "study":
+    // (Nếu không mở Pomodoro, hoặc đang ở giai đoạn Relax/Break, hoặc Mode là Music -> TUYỆT ĐỐI KHÔNG HỎI)
+    if (this.isPomodoroFocus() && this.getFocusMode() === "study") {
       this._studyCheckInTimeout = setTimeout(() => {
         if (this._currentYTLongId === videoId && !this._checkedInVideos.has(videoId)) {
+          if (!this._currentYTLongTitle) {
+            const titleEl = document.querySelector("h1.ytd-watch-metadata yt-formatted-string, #title h1");
+            this._currentYTLongTitle = titleEl
+              ? titleEl.textContent.trim()
+              : document.title.replace("- YouTube", "").trim();
+          }
+
           const category = categorizeText(this._currentYTLongTitle);
           const lowerTitle = (this._currentYTLongTitle || "").toLowerCase();
           const matchesKeyword = (targetKeywords || []).some(k => lowerTitle.includes(k.toLowerCase()));
-          if (!matchesKeyword && category === "Khác") {
+          
+          const isTargetOrEducational = matchesKeyword || 
+            category === "Giáo dục & Công nghệ" ||
+            category === "Phát triển bản thân" ||
+            category === "Tài chính & Đầu tư";
+
+          // Nếu hệ thống nhận định là KHÔNG phân loại được (category === "Khác" và không khớp mục tiêu):
+          if (!isTargetOrEducational && category === "Khác") {
             this._checkedInVideos.add(videoId);
             this.onStudyCheckInNeeded?.(videoId, this._currentYTLongTitle);
           }
@@ -305,7 +325,11 @@ export class Tracker {
     const duration = Math.round(this._currentYTLongDuration);
 
     // KIỂM TRA MODE NHẠC TẬP TRUNG (MUSIC FOCUS)
-    const isFocusMusic = this.getFocusMode() === "music";
+    // TÁCH BẠCH RÕ RÀNG: Chỉ tính nhạc riêng khi BẬT Pomodoro VÀ đang ở chu kỳ FOCUS VÀ Mode là Music.
+    // Còn nếu KHÔNG mở Pomodoro, hoặc ở chu kỳ Relax/Break: video ca nhạc và mọi video dài đều được tính
+    // bình thường vào danh mục video dài (longVideos)!
+    const isPomodoroFocusActive = this.isPomodoroFocus();
+    const isFocusMusic = isPomodoroFocusActive && this.getFocusMode() === "music";
     const isMusic = this.isMusicVideo(this._currentYTLongTitle, this._currentYTLongChannel);
 
     if (isFocusMusic && isMusic) {
@@ -362,6 +386,21 @@ export class Tracker {
 
       lv.details.unshift(record);
       if (lv.details.length > 50) lv.details.pop();
+
+      // Lưu lại các video chưa phân loại được vào unclassifiedVideos để tổng hợp gửi AI cuối ngày
+      if (category === "Khác" && this._currentYTLongTitle) {
+        if (!this.dayData.unclassifiedVideos) this.dayData.unclassifiedVideos = [];
+        const exists = this.dayData.unclassifiedVideos.some(u => u.title === this._currentYTLongTitle);
+        if (!exists) {
+          this.dayData.unclassifiedVideos.push({
+            id: this._currentYTLongId,
+            title: this._currentYTLongTitle,
+            watchedSeconds: watched,
+            timestamp: Date.now()
+          });
+          if (this.dayData.unclassifiedVideos.length > 25) this.dayData.unclassifiedVideos.shift();
+        }
+      }
 
       saveDayData(this.dayData, "youtube", true);
       this.onUpdate();

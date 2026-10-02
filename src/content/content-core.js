@@ -674,9 +674,10 @@ loadAppData(({ config, dayData: loaded, hudPosition, pomodoroState }) => {
     isFB,
     onUpdate,
     onAction,
-    getFocusMode: () => currentFocusMode,
+    getFocusMode: () => (pomodoroManager?.state?.focusMode || currentFocusMode),
+    isPomodoroFocus: () => !!(pomodoroManager && pomodoroManager.isFocusSession),
     onStudyCheckInNeeded: (videoId, videoTitle) => {
-      if (currentFocusMode !== "study") return;
+      if (!pomodoroManager || !pomodoroManager.isFocusSession || (pomodoroManager?.state?.focusMode || currentFocusMode) !== "study") return;
       friction.showStudyCheckInModal(
         videoTitle,
         (intent) => {

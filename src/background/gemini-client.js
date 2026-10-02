@@ -221,6 +221,7 @@ Bản tóm tắt ngày (Digest):
 - Thời gian nghe nhạc tập trung (Music Focus): ${Math.round((digest.musicVideos?.totalDurationSeconds || 0) / 60)} phút (${digest.musicVideos?.totalWatched || 0} bài)
 - Video bổ ích đã xem trọn vẹn (>=80%): ${JSON.stringify(digest.usefulVideos || [])}
 - Video xem trong Chế độ Học tập (Study Focus) và câu trả lời mục đích của người dùng: ${JSON.stringify(digest.studyVideoLogs || [])}
+- Các video chưa phân loại được trong ngày: ${JSON.stringify(digest.unclassifiedVideos || [])}
 
 Mục tiêu lớn (Master Goal): "${masterGoal || "Trở thành phiên bản tốt hơn"}"
 
@@ -230,16 +231,18 @@ Người dùng tự phản tư hôm nay:
 
 Yêu cầu phản hồi:
 - Lời nhận xét thấu cảm, động viên chân thành dựa trên số liệu thực tế.
-- Đánh giá trung thực xem các video người dùng xem trong Chế độ Học tập và lý do họ trả lời có thực sự phục vụ cho Mục tiêu lớn (Master Goal) hay không.
+- Đánh giá trung thực xem các video người dùng xem trong Chế độ Học tập (Study Focus) và lý do họ trả lời có thực sự phục vụ cho Mục tiêu lớn (Master Goal) hay không.
+- Phân tích các video chưa phân loại được (nếu có), đánh giá xem chúng có phù hợp mục tiêu không và gợi ý phân loại hoặc từ khóa mới giúp nâng cấp bộ phân loại tự động.
 - Nhắc lại 1-2 video bổ ích mà người dùng đã xem trọn vẹn trong ngày để họ ghi nhớ kiến thức.
 - Liên kết với Master Goal để củng cố động lực nội tại.
-- Ngắn gọn, súc tích (dưới 180 từ), tuyệt đối thân thiện.
+- Ngắn gọn, súc tích (dưới 200 từ), tuyệt đối thân thiện.
 
 Trả về JSON đúng cấu trúc:
 {
   "coachFeedback": "Lời nhận xét và phân tích...",
   "remindedVideos": ["Tiêu đề video 1..."],
-  "tomorrowMission": "1 hành động nhỏ cụ thể cho ngày mai..."
+  "tomorrowMission": "1 hành động nhỏ cụ thể cho ngày mai...",
+  "suggestedClassification": "Gợi ý phân loại hoặc từ khóa mới..."
 }`;
 
   try {
@@ -250,7 +253,8 @@ Trả về JSON đúng cấu trúc:
         ok: true,
         coachFeedback: parsed.coachFeedback,
         remindedVideos: Array.isArray(parsed.remindedVideos) ? parsed.remindedVideos : [],
-        tomorrowMission: parsed.tomorrowMission || "Duy trì chánh niệm khi mở mạng xã hội."
+        tomorrowMission: parsed.tomorrowMission || "Duy trì chánh niệm khi mở mạng xã hội.",
+        suggestedClassification: parsed.suggestedClassification || ""
       };
     }
     return {
