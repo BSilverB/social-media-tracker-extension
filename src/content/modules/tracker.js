@@ -21,6 +21,14 @@ export class Tracker {
    * @param {Function} opts.getFocusMode - () => "music" | "study"
    * @param {Function} opts.onStudyCheckInNeeded - (videoId, title) => void
    */
+  constructor({
+    dayData,
+    platformKey,
+    isYT,
+    isFB,
+    onUpdate,
+    onAction,
+    onImpulsive,
     onUseful,
     getFocusMode,
     isPomodoroFocus,
