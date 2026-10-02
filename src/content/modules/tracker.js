@@ -18,8 +18,10 @@ export class Tracker {
    * @param {boolean} opts.isFB
    * @param {Function} opts.onUpdate  - Callback gọi khi dữ liệu thay đổi
    * @param {Function} opts.onAction  - Callback trigger friction check
+   * @param {Function} opts.getFocusMode - () => "music" | "study"
+   * @param {Function} opts.onStudyCheckInNeeded - (videoId, title) => void
    */
-  constructor({ dayData, platformKey, isYT, isFB, onUpdate, onAction, onImpulsive, onUseful }) {
+  constructor({ dayData, platformKey, isYT, isFB, onUpdate, onAction, onImpulsive, onUseful, getFocusMode, onStudyCheckInNeeded }) {
     this.dayData = dayData;
     this.platformKey = platformKey;
     this.isYT = isYT;
@@ -28,6 +30,8 @@ export class Tracker {
     this.onAction = onAction || (() => {});
     this.onImpulsive = onImpulsive || (() => {});
     this.onUseful = onUseful || (() => {});
+    this.getFocusMode = getFocusMode || (() => "music");
+    this.onStudyCheckInNeeded = onStudyCheckInNeeded || null;
 
     this._lastUserActivity = Date.now();
     this._activityThrottle = 0;
@@ -38,9 +42,12 @@ export class Tracker {
     this._currentShortVideoEl = null;
     this._currentYTLongId = null;
     this._currentYTLongTitle = "";
+    this._currentYTLongChannel = "";
     this._currentYTLongDuration = 0;
     this._currentYTLongWatchedSec = 0;
     this._ytWatchInterval = null;
+    this._studyCheckInTimeout = null;
+    this._checkedInVideos = new Set();
 
     // Facebook state
     this._currentFBReelId = null;
@@ -184,6 +191,42 @@ export class Tracker {
     this._setupShortLoopTracker("youtube");
   }
 
+  // ─── Music Video Detection ───────────────────────────────────────────────
+  isMusicVideo(title = "", channelName = "") {
+    if (!this.isYT) return false;
+
+    // 1. Kiểm tra filter chips trên đầu trang YouTube (ví dụ chip "Âm nhạc" / "Music")
+    try {
+      const activeChips = document.querySelectorAll(
+        "yt-chip-cloud-chip-renderer[selected], #chips yt-chip-cloud-chip-renderer[aria-selected='true'], yt-chip-cloud-chip-renderer"
+      );
+      for (const chip of activeChips) {
+        const text = chip.textContent.trim().toLowerCase();
+        if (text === "âm nhạc" || text === "nhạc" || text === "music") {
+          if (chip.hasAttribute("selected") || chip.getAttribute("aria-selected") === "true") {
+            return true;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 2. Kiểm tra tên kênh nghệ sĩ / Official Music / Topic
+    const ch = (channelName || "").toLowerCase();
+    if (ch.endsWith("- topic") || ch.endsWith("- chủ đề") || ch.includes("official music") || ch.includes("records") || ch.includes("vevo")) {
+      return true;
+    }
+
+    // 3. Kiểm tra huy hiệu nghệ sĩ chính thức (Official Artist Channel)
+    if (document.querySelector("ytd-channel-name ytd-badge-supported-renderer [aria-label*='nghệ sĩ'], ytd-channel-name ytd-badge-supported-renderer [aria-label*='Artist']")) {
+      return true;
+    }
+
+    // 4. Regex từ khóa âm nhạc trong tiêu đề hoặc kênh
+    const t = (title || "").toLowerCase();
+    const musicRegex = /\b(music|lofi|chill|playlist|nhạc|bài hát|soundtrack|acoustic|instrumental|remix|piano|ambient|audio|mv|official music video|karaoke|beat|lyric|lyrics|mashup|ost|medley|guitar|synthwave|relaxing)\b/i;
+    return musicRegex.test(t) || musicRegex.test(ch);
+  }
+
   // ─── YouTube Long Videos ──────────────────────────────────────────────────
 
   startYTLongTracking(videoId, targetKeywords = []) {
@@ -193,18 +236,44 @@ export class Tracker {
     this._currentYTLongId = videoId;
     this._currentYTLongWatchedSec = 0;
     this._currentYTLongDuration = 0;
+    this._currentYTLongTitle = "";
+    this._currentYTLongChannel = "";
     this.onAction();
 
-    // Lấy tiêu đề & thời lượng sau khi DOM ổn định
+    // Lấy tiêu đề, kênh & thời lượng sau khi DOM ổn định
     setTimeout(() => {
       const titleEl = document.querySelector("h1.ytd-watch-metadata yt-formatted-string, #title h1");
       this._currentYTLongTitle = titleEl
         ? titleEl.textContent.trim()
         : document.title.replace("- YouTube", "").trim();
 
+      const channelEl = document.querySelector("#channel-name #text, ytd-channel-name yt-formatted-string");
+      this._currentYTLongChannel = channelEl ? channelEl.textContent.trim() : "";
+
       const videoEl = document.querySelector("video.html5-main-video");
       if (videoEl) this._currentYTLongDuration = videoEl.duration || 0;
     }, 1500);
+
+    // Xóa timer check-in cũ nếu có
+    if (this._studyCheckInTimeout) {
+      clearTimeout(this._studyCheckInTimeout);
+      this._studyCheckInTimeout = null;
+    }
+
+    // Nếu đang ở Chế độ Học tập (Study Focus), sau 10s xem nếu chưa phân loại được thì trigger check-in
+    if (this.getFocusMode() === "study") {
+      this._studyCheckInTimeout = setTimeout(() => {
+        if (this._currentYTLongId === videoId && !this._checkedInVideos.has(videoId)) {
+          const category = categorizeText(this._currentYTLongTitle);
+          const lowerTitle = (this._currentYTLongTitle || "").toLowerCase();
+          const matchesKeyword = (targetKeywords || []).some(k => lowerTitle.includes(k.toLowerCase()));
+          if (!matchesKeyword && category === "Khác") {
+            this._checkedInVideos.add(videoId);
+            this.onStudyCheckInNeeded?.(videoId, this._currentYTLongTitle);
+          }
+        }
+      }, 10000);
+    }
 
     // Đếm giây xem thực tế
     if (this._ytWatchInterval) clearInterval(this._ytWatchInterval);
@@ -222,6 +291,11 @@ export class Tracker {
   endYTLongVideo(targetKeywords = []) {
     if (!this._currentYTLongId) return;
 
+    if (this._studyCheckInTimeout) {
+      clearTimeout(this._studyCheckInTimeout);
+      this._studyCheckInTimeout = null;
+    }
+
     if (this._ytWatchInterval) {
       clearInterval(this._ytWatchInterval);
       this._ytWatchInterval = null;
@@ -229,6 +303,29 @@ export class Tracker {
 
     const watched = Math.round(this._currentYTLongWatchedSec);
     const duration = Math.round(this._currentYTLongDuration);
+
+    // KIỂM TRA MODE NHẠC TẬP TRUNG (MUSIC FOCUS)
+    const isFocusMusic = this.getFocusMode() === "music";
+    const isMusic = this.isMusicVideo(this._currentYTLongTitle, this._currentYTLongChannel);
+
+    if (isFocusMusic && isMusic) {
+      if (watched >= 5) {
+        if (!this.dayData.youtube.musicVideos) {
+          this.dayData.youtube.musicVideos = { totalWatched: 0, totalDurationSeconds: 0 };
+        }
+        this.dayData.youtube.musicVideos.totalWatched++;
+        this.dayData.youtube.musicVideos.totalDurationSeconds += watched;
+        saveDayData(this.dayData, "youtube", true);
+        this.onUpdate();
+        this.onAction();
+      }
+      this._currentYTLongId = null;
+      this._currentYTLongWatchedSec = 0;
+      this._currentYTLongDuration = 0;
+      this._currentYTLongTitle = "";
+      this._currentYTLongChannel = "";
+      return;
+    }
 
     if (watched >= 3) {
       const watchPct = duration > 0 ? (watched / duration) : 0;
@@ -317,6 +414,7 @@ export class Tracker {
     this._currentYTLongWatchedSec = 0;
     this._currentYTLongDuration = 0;
     this._currentYTLongTitle = "";
+    this._currentYTLongChannel = "";
   }
 
   // ─── Facebook Reels ───────────────────────────────────────────────────────

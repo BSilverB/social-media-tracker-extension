@@ -434,6 +434,26 @@
           <div id="yt-shorts-loops" class="metric-number" style="color:#F59E0B">0</div>
         </div>
       </div>
+      <!-- Multi-segment Milestone Progress Bar for Shorts -->
+      <div style="margin-top: 10px; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 7px 10px; border: 1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 5px;">
+          <span style="font-size:10px; font-weight:700; color:#CBD5E1; display:flex; align-items:center; gap:4px;">
+            🎯 Tiến trình Mốc giới hạn
+          </span>
+          <span id="yt-shorts-milestone-text" style="font-size:10px; font-weight:700; color:#10B981;">
+            0 / 15 (M1)
+          </span>
+        </div>
+        <div style="position:relative; height:6px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
+          <div id="yt-shorts-milestone-bar" style="height:100%; width:0%; background:linear-gradient(90deg, #10B981, #059669); transition:width 0.4s ease, background 0.3s ease;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:9px; color:var(--text-muted); margin-top:4px;">
+          <span>0</span>
+          <span id="yt-shorts-m1-mark" style="color:#10B981;">M1: 15</span>
+          <span id="yt-shorts-m2-mark" style="color:#F59E0B;">M2: 30</span>
+          <span id="yt-shorts-m3-mark" style="color:#EF4444;">M3: 45</span>
+        </div>
+      </div>
     </div>
 
     <!-- YouTube Long Videos Card -->
@@ -452,8 +472,46 @@
           <div id="yt-long-impulsive" class="metric-number" style="color:#EF4444">0</div>
         </div>
       </div>
+      <!-- Multi-segment Milestone Progress Bar for Long Videos -->
+      <div style="margin-top: 6px; margin-bottom:8px; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 7px 10px; border: 1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 5px;">
+          <span style="font-size:10px; font-weight:700; color:#CBD5E1; display:flex; align-items:center; gap:4px;">
+            🎯 Tiến trình Mốc giới hạn
+          </span>
+          <span id="yt-long-milestone-text" style="font-size:10px; font-weight:700; color:#10B981;">
+            0 / 3 (M1)
+          </span>
+        </div>
+        <div style="position:relative; height:6px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
+          <div id="yt-long-milestone-bar" style="height:100%; width:0%; background:linear-gradient(90deg, #10B981, #059669); transition:width 0.4s ease, background 0.3s ease;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:9px; color:var(--text-muted); margin-top:4px;">
+          <span>0</span>
+          <span id="yt-long-m1-mark" style="color:#10B981;">M1: 3</span>
+          <span id="yt-long-m2-mark" style="color:#F59E0B;">M2: 5</span>
+          <span id="yt-long-m3-mark" style="color:#EF4444;">M3: 8</span>
+        </div>
+      </div>
       <div id="yt-recent-long-list">
         <!-- Danh sách video dài gần đây -->
+      </div>
+    </div>
+
+    <!-- YouTube Music Focus Card -->
+    <div class="card" style="border: 1px solid rgba(139,92,246,0.3); background: rgba(139,92,246,0.05);">
+      <div class="card-header">
+        <span class="card-title" style="color: #C4B5FD;">🎵 Nhạc Tập Trung (Music Focus)</span>
+        <span class="badge-info" style="background: rgba(139,92,246,0.2); color:#C4B5FD;">Không tính vào giới hạn</span>
+      </div>
+      <div class="stat-grid-2">
+        <div class="metric-pill">
+          <div class="metric-name">Bài nhạc đã nghe</div>
+          <div id="yt-music-count" class="metric-number" style="color:#A78BFA">0</div>
+        </div>
+        <div class="metric-pill">
+          <div class="metric-name">Thời gian nghe</div>
+          <div id="yt-music-time" class="metric-number" style="color:#38BDF8">0m 0s</div>
+        </div>
       </div>
     </div>
 
@@ -507,6 +565,26 @@
           <div id="fb-reloads" class="metric-number" style="color:#F59E0B">0</div>
         </div>
       </div>
+      <!-- Multi-segment Milestone Progress Bar for Facebook Feeds -->
+      <div style="margin-top: 10px; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 7px 10px; border: 1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 5px;">
+          <span style="font-size:10px; font-weight:700; color:#CBD5E1; display:flex; align-items:center; gap:4px;">
+            🎯 Tiến trình Mốc giới hạn
+          </span>
+          <span id="fb-feed-milestone-text" style="font-size:10px; font-weight:700; color:#10B981;">
+            0 / 20 (M1)
+          </span>
+        </div>
+        <div style="position:relative; height:6px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
+          <div id="fb-feed-milestone-bar" style="height:100%; width:0%; background:linear-gradient(90deg, #10B981, #059669); transition:width 0.4s ease, background 0.3s ease;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:9px; color:var(--text-muted); margin-top:4px;">
+          <span>0</span>
+          <span id="fb-feed-m1-mark" style="color:#10B981;">M1: 20</span>
+          <span id="fb-feed-m2-mark" style="color:#F59E0B;">M2: 40</span>
+          <span id="fb-feed-m3-mark" style="color:#EF4444;">M3: 60</span>
+        </div>
+      </div>
     </div>
 
     <!-- Facebook Reels Card -->
@@ -526,6 +604,26 @@
         <div class="metric-pill">
           <div class="metric-name">Lặp lại (Loop)</div>
           <div id="fb-reels-loops" class="metric-number" style="color:#F59E0B">0</div>
+        </div>
+      </div>
+      <!-- Multi-segment Milestone Progress Bar for Facebook Reels -->
+      <div style="margin-top: 10px; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 7px 10px; border: 1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 5px;">
+          <span style="font-size:10px; font-weight:700; color:#CBD5E1; display:flex; align-items:center; gap:4px;">
+            🎯 Tiến trình Mốc giới hạn
+          </span>
+          <span id="fb-reels-milestone-text" style="font-size:10px; font-weight:700; color:#10B981;">
+            0 / 15 (M1)
+          </span>
+        </div>
+        <div style="position:relative; height:6px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
+          <div id="fb-reels-milestone-bar" style="height:100%; width:0%; background:linear-gradient(90deg, #10B981, #059669); transition:width 0.4s ease, background 0.3s ease;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:9px; color:var(--text-muted); margin-top:4px;">
+          <span>0</span>
+          <span id="fb-reels-m1-mark" style="color:#10B981;">M1: 15</span>
+          <span id="fb-reels-m2-mark" style="color:#F59E0B;">M2: 30</span>
+          <span id="fb-reels-m3-mark" style="color:#EF4444;">M3: 45</span>
         </div>
       </div>
     </div>

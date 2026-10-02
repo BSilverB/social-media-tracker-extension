@@ -41,18 +41,65 @@ function setupTabs() {
   });
 }
 
+// Helper cập nhật thanh tiến trình đa phân đoạn M1, M2, M3
+function updateMilestoneProgress(barId, textId, marks, current, m1, m2, m3, unit) {
+  const bar = document.getElementById(barId);
+  const text = document.getElementById(textId);
+  if (marks.m1) { const el = document.getElementById(marks.m1); if (el) el.innerText = `M1: ${m1}`; }
+  if (marks.m2) { const el = document.getElementById(marks.m2); if (el) el.innerText = `M2: ${m2}`; }
+  if (marks.m3) { const el = document.getElementById(marks.m3); if (el) el.innerText = `M3: ${m3}`; }
+
+  const max = m3 * 1.15;
+  const pct = Math.min(100, Math.round((current / max) * 100));
+  if (bar) {
+    bar.style.width = `${pct}%`;
+    if (current < m1) {
+      bar.style.background = "linear-gradient(90deg, #10B981, #059669)";
+    } else if (current < m2) {
+      bar.style.background = "linear-gradient(90deg, #F59E0B, #D97706)";
+    } else if (current < m3) {
+      bar.style.background = "linear-gradient(90deg, #F97316, #EA580C)";
+    } else {
+      bar.style.background = "linear-gradient(90deg, #EF4444, #DC2626)";
+    }
+  }
+
+  if (text) {
+    let status = "An toàn";
+    let color = "#10B981";
+    if (current >= m3) {
+      status = "Trần đỏ M3";
+      color = "#EF4444";
+    } else if (current >= m2) {
+      status = "Cảnh báo M2";
+      color = "#F97316";
+    } else if (current >= m1) {
+      status = "Nhắc nhở M1";
+      color = "#F59E0B";
+    }
+    text.innerHTML = `<b>${current}</b> / ${m1} ${unit} <span style="color:${color}; font-weight:700;">(${status})</span>`;
+  }
+}
+
 // Cập nhật toàn bộ giao diện từ Storage
 function updateDashboard() {
   const todayKey = getTodayKey();
   const todayBadge = document.getElementById("today-badge");
   if (todayBadge) todayBadge.innerText = todayKey;
 
-  chrome.storage.local.get([todayKey], (result) => {
+  chrome.storage.local.get([todayKey, "app_config"], (result) => {
     const data = result[todayKey] || {};
+    const thresh = result.app_config?.thresholds || {};
+
+    const ytShortsThresh = thresh.youtube?.shorts || { m1: 15, m2: 30, m3: 45 };
+    const ytLongThresh = thresh.youtube?.long || { m1: 3, m2: 5, m3: 8 };
+    const fbFeedsThresh = thresh.facebook?.feeds || { m1: 20, m2: 40, m3: 60 };
+    const fbReelsThresh = thresh.facebook?.reels || { m1: 15, m2: 30, m3: 45 };
 
     const ytSummary = data.youtube?.summary || { activeTimeSeconds: 0, passiveTimeSeconds: 0, reloadCount: 0 };
     const ytShorts = data.youtube?.shortVideos || { totalSwipes: 0, validViews: 0, loopViews: 0 };
     const ytLong = data.youtube?.longVideos || { totalWatched: 0, impulsiveCount: 0, details: [] };
+    const ytMusic = data.youtube?.musicVideos || { totalWatched: 0, totalDurationSeconds: 0 };
 
     const fbSummary = data.facebook?.summary || { activeTimeSeconds: 0, passiveTimeSeconds: 0, reloadCount: 0, feedPostsScrolled: 0 };
     const fbReels = data.facebook?.reels || { totalSwipes: 0, validViews: 0, loopViews: 0 };
@@ -69,9 +116,21 @@ function updateDashboard() {
     document.getElementById("yt-reload-badge").innerText = `F5/Home: ${ytSummary.reloadCount || 0}`;
 
     // Shorts
-    document.getElementById("yt-shorts-swipes").innerText = ytShorts.totalSwipes || 0;
+    const ytShortsTotal = ytShorts.totalSwipes || 0;
+    document.getElementById("yt-shorts-swipes").innerText = ytShortsTotal;
     document.getElementById("yt-shorts-valid").innerText = ytShorts.validViews || 0;
     document.getElementById("yt-shorts-loops").innerText = ytShorts.loopViews || 0;
+
+    updateMilestoneProgress(
+      "yt-shorts-milestone-bar",
+      "yt-shorts-milestone-text",
+      { m1: "yt-shorts-m1-mark", m2: "yt-shorts-m2-mark", m3: "yt-shorts-m3-mark" },
+      ytShortsTotal,
+      ytShortsThresh.m1,
+      ytShortsThresh.m2,
+      ytShortsThresh.m3,
+      "lượt"
+    );
 
     // Long Videos
     const ytLongTotal = ytLong.totalWatched || 0;
@@ -81,6 +140,23 @@ function updateDashboard() {
     document.getElementById("yt-long-total").innerText = ytLongTotal;
     document.getElementById("yt-long-impulsive").innerText = ytImpulsive;
     document.getElementById("yt-impulsive-rate-badge").innerText = `Lướt vội: ${ytImpulsiveRate}%`;
+
+    updateMilestoneProgress(
+      "yt-long-milestone-bar",
+      "yt-long-milestone-text",
+      { m1: "yt-long-m1-mark", m2: "yt-long-m2-mark", m3: "yt-long-m3-mark" },
+      ytLongTotal,
+      ytLongThresh.m1,
+      ytLongThresh.m2,
+      ytLongThresh.m3,
+      "video"
+    );
+
+    // Nhạc tập trung (Music Focus)
+    const ytMusicCount = document.getElementById("yt-music-count");
+    const ytMusicTime = document.getElementById("yt-music-time");
+    if (ytMusicCount) ytMusicCount.innerText = ytMusic.totalWatched || 0;
+    if (ytMusicTime) ytMusicTime.innerText = formatDuration(ytMusic.totalDurationSeconds || 0);
 
     // Danh sách Video dài gần đây
     renderRecentVideos(ytLong.details || []);
@@ -99,17 +175,41 @@ function updateDashboard() {
     document.getElementById("fb-ratio-bar").style.width = `${fbActiveRatio}%`;
     document.getElementById("fb-reload-badge").innerText = `F5/Home: ${fbSummary.reloadCount || 0}`;
 
-    document.getElementById("fb-feed-scrolled").innerText = fbSummary.feedPostsScrolled || 0;
+    const fbFeedCount = fbSummary.feedPostsScrolled || 0;
+    document.getElementById("fb-feed-scrolled").innerText = fbFeedCount;
     document.getElementById("fb-reloads").innerText = fbSummary.reloadCount || 0;
 
-    document.getElementById("fb-reels-swipes").innerText = fbReels.totalSwipes || 0;
+    updateMilestoneProgress(
+      "fb-feed-milestone-bar",
+      "fb-feed-milestone-text",
+      { m1: "fb-feed-m1-mark", m2: "fb-feed-m2-mark", m3: "fb-feed-m3-mark" },
+      fbFeedCount,
+      fbFeedsThresh.m1,
+      fbFeedsThresh.m2,
+      fbFeedsThresh.m3,
+      "bài"
+    );
+
+    const fbReelsTotal = fbReels.totalSwipes || 0;
+    document.getElementById("fb-reels-swipes").innerText = fbReelsTotal;
     document.getElementById("fb-reels-valid").innerText = fbReels.validViews || 0;
     document.getElementById("fb-reels-loops").innerText = fbReels.loopViews || 0;
+
+    updateMilestoneProgress(
+      "fb-reels-milestone-bar",
+      "fb-reels-milestone-text",
+      { m1: "fb-reels-m1-mark", m2: "fb-reels-m2-mark", m3: "fb-reels-m3-mark" },
+      fbReelsTotal,
+      fbReelsThresh.m1,
+      fbReelsThresh.m2,
+      fbReelsThresh.m3,
+      "lượt"
+    );
 
     // --- 3. RENDER TỔNG QUAN PANEL ---
     const totalActive = ytActive + fbActive;
     const totalReloads = (ytSummary.reloadCount || 0) + (fbSummary.reloadCount || 0);
-    const totalSwipes = (ytShorts.totalSwipes || 0) + (fbReels.totalSwipes || 0);
+    const totalSwipes = ytShortsTotal + fbReelsTotal;
     const totalLoops = (ytShorts.loopViews || 0) + (fbReels.loopViews || 0);
 
     document.getElementById("total-active-time").innerText = formatDuration(totalActive);
@@ -1140,6 +1240,53 @@ function setupDevMode() {
   });
 }
 
+// ─── Digital Detox: Hồi phục năng lượng khi tắt ứng dụng ─────────────────────
+function checkIdleRecoveryPopup() {
+  chrome.storage.local.get(["lastActiveTimestamp", "petState", "pet_state"], (res) => {
+    const lastActive = res.lastActiveTimestamp;
+    const now = Date.now();
+    if (!lastActive) {
+      chrome.storage.local.set({ lastActiveTimestamp: now });
+      return;
+    }
+    const elapsedMinutes = Math.floor((now - lastActive) / (60 * 1000));
+    if (elapsedMinutes >= 30) {
+      const bonusSteps = Math.floor(elapsedMinutes / 30);
+      const bonus = bonusSteps * 5;
+      const pet = res.petState || res.pet_state || { energy: 100, mood: "happy" };
+      const oldEnergy = pet.energy ?? 100;
+      const newEnergy = Math.min(100, oldEnergy + bonus);
+      pet.energy = newEnergy;
+      if (newEnergy >= 50) pet.mood = "happy";
+      else if (newEnergy >= 20) pet.mood = "neutral";
+
+      chrome.storage.local.set({
+        petState: pet,
+        pet_state: pet,
+        lastActiveTimestamp: now
+      }, () => {
+        updatePetBanner();
+        const hrs = Math.floor(elapsedMinutes / 60);
+        const mins = elapsedMinutes % 60;
+        const timeStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins} phút`;
+        const toast = document.createElement("div");
+        toast.style.cssText = `
+          position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:999999;
+          background:linear-gradient(135deg, rgba(16,185,129,0.95), rgba(6,182,212,0.95));
+          color:#fff; padding:8px 14px; border-radius:12px; font-size:11px; font-weight:700;
+          box-shadow:0 8px 25px rgba(0,0,0,0.5); text-align:center; max-width:320px;
+          animation:mindfulBubblePop 0.3s ease;
+        `;
+        toast.innerHTML = `🌿 Digital Detox (${timeStr})<br/><span style="font-size:10px; font-weight:normal;">Pet đã được nghỉ ngơi và hồi phục <b style="color:#FEF08A;">+${bonus}⚡</b>!</span>`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 4500);
+      });
+    } else {
+      chrome.storage.local.set({ lastActiveTimestamp: now });
+    }
+  });
+}
+
 // Khởi chạy khi popup load
 document.addEventListener("DOMContentLoaded", () => {
   setupTabs();
@@ -1152,6 +1299,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupDevMode();
   updateDashboard();
   updatePetBanner();
+  checkIdleRecoveryPopup();
 });
 
 // Lắng nghe thay đổi real-time từ storage

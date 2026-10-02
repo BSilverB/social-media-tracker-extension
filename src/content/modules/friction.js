@@ -329,6 +329,82 @@ export class FrictionManager {
     if (btn15) btn15.onclick = () => handleExtend(15, 35);
   }
 
+  // ─── Modal Thẩm Định Mục Tiêu Học Tập (10s Study Focus Check-in) ───────────
+  showStudyCheckInModal(videoTitle, onConfirmed, onRejected) {
+    let modal = document.getElementById("mindful-study-checkin-modal");
+    if (modal) modal.remove();
+
+    modal = document.createElement("div");
+    modal.id = "mindful-study-checkin-modal";
+    modal.style.cssText = `
+      position: fixed !important;
+      top: 0 !important; left: 0 !important;
+      width: 100vw !important; height: 100vh !important;
+      z-index: 2147483647 !important;
+      background: rgba(8, 12, 20, 0.78) !important;
+      backdrop-filter: blur(10px) !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      padding: 16px !important;
+      box-sizing: border-box !important;
+    `;
+
+    const petAvatar = this.petEngine ? `<div style="display:flex; justify-content:center; margin-bottom:12px;">${this.petEngine.getPetAvatarHtml(60)}</div>` : `<div style="font-size:44px; margin-bottom:10px;">📚</div>`;
+
+    modal.innerHTML = `
+      <div style="background:#131B2E; border:1.5px solid rgba(139,92,246,0.55); border-radius:20px;
+        padding:26px 24px; max-width:400px; width:100%; text-align:center;
+        box-shadow:0 25px 60px rgba(0,0,0,0.8), 0 0 35px rgba(139,92,246,0.25); color:#fff; position:relative;
+        animation:mindfulCardPop 0.3s cubic-bezier(0.16,1,0.3,1);">
+        ${petAvatar}
+        <div style="font-size:16px; font-weight:800; margin-bottom:6px; color:#F8FAFC;">
+          📚 Thẩm Định Mục Tiêu Học Tập
+        </div>
+        <div style="font-size:12.5px; color:#94A3B8; margin-bottom:12px; line-height:1.45; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">
+          Bạn đang xem: <b style="color:#F1F5F9;">"${videoTitle}"</b>
+        </div>
+        <div style="font-size:12px; color:#CBD5E1; margin-bottom:10px;">
+          Video này phục vụ mục tiêu học tập gì của bạn?
+        </div>
+        <input type="text" id="mindful-study-intent-input" placeholder="VD: Học lập trình Python, luyện nghe tiếng Anh..."
+          style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.18);
+          color:#fff; border-radius:10px; padding:10px 14px; font-size:12.5px; margin-bottom:16px; outline:none;">
+
+        <div style="display:flex; gap:8px;">
+          <button id="btn-study-confirm" style="flex:1; background:linear-gradient(135deg,#8B5CF6,#6366F1); border:none;
+            color:#fff; font-weight:700; padding:10px 0; border-radius:8px; cursor:pointer; font-size:12px; box-shadow:0 4px 15px rgba(139,92,246,0.4);">
+            ✓ Đúng mục tiêu học
+          </button>
+          <button id="btn-study-reject" style="flex:1; background:rgba(239,68,68,0.2); border:1px solid #EF4444;
+            color:#FCA5A5; font-weight:700; padding:10px 0; border-radius:8px; cursor:pointer; font-size:12px;">
+            🛑 Video giải trí (-10⚡)
+          </button>
+        </div>
+      </div>
+    `;
+
+    (document.body || document.documentElement).appendChild(modal);
+
+    const input = modal.querySelector("#mindful-study-intent-input");
+    setTimeout(() => input?.focus(), 150);
+
+    const confirmBtn = modal.querySelector("#btn-study-confirm");
+    const rejectBtn = modal.querySelector("#btn-study-reject");
+
+    confirmBtn.onclick = () => {
+      const intent = input.value.trim() || "Nội dung học tập";
+      modal.remove();
+      if (onConfirmed) onConfirmed(intent);
+    };
+
+    rejectBtn.onclick = () => {
+      modal.remove();
+      if (onRejected) onRejected();
+    };
+  }
+
   // ─── Hard Friction Overlay với Bài tập Thở Box Breathing (12s) ───────────
 
   _injectBreathingStyles() {
@@ -542,7 +618,8 @@ export class FrictionManager {
             overlay.style.display = "none";
             window.removeEventListener("wheel", this._preventScroll);
             window.removeEventListener("touchmove", this._preventScroll);
-            this.onToast("🔑 Bạn đã hít thở sâu & nhận thêm 5 lượt lướt hoãn!", 4000);
+            if (this.petEngine) this.petEngine.reward(5, "breathing_complete");
+            this.onToast("🔑 Bạn đã hít thở sâu, hồi phục +5⚡ và nhận 5 lượt lướt hoãn!", 4000);
           };
         }
       }
@@ -559,6 +636,10 @@ export class FrictionManager {
   checkAndTrigger(currentCount, m3Limit, unitLabel) {
     if (currentCount >= m3Limit) {
       if (this.consumeGrace()) return; // tiêu grace swipe
+      // Đã hết 5 lượt grace sau M3 mà vẫn lướt tiếp -> trừ 5⚡/lượt
+      if (this.petEngine) {
+        this.petEngine.penalize(5, "excess_swipes_post_m3");
+      }
       this.showHardFriction(currentCount, m3Limit, unitLabel);
     }
   }
