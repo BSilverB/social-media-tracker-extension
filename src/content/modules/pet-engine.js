@@ -725,6 +725,41 @@ export class PetEngine {
     }
   }
 
+  // ─── Digital Detox: Hồi phục năng lượng khi tắt ứng dụng / rời xa MXH ───────
+  checkIdleRecovery() {
+    if (typeof chrome === "undefined" || !chrome.storage?.local) return;
+    chrome.storage.local.get(["lastActiveTimestamp", "petState", "pet_state"], (res) => {
+      const lastActive = res.lastActiveTimestamp;
+      const now = Date.now();
+      if (!lastActive) {
+        chrome.storage.local.set({ lastActiveTimestamp: now });
+        return;
+      }
+      const elapsedMinutes = Math.floor((now - lastActive) / (60 * 1000));
+      if (elapsedMinutes >= 30) {
+        const bonusSteps = Math.floor(elapsedMinutes / 30);
+        const bonus = bonusSteps * 5;
+        this.energy = Math.min(100, this.energy + bonus);
+        this._updateMoodFromEnergy();
+        this._saveState();
+        this.render();
+
+        chrome.storage.local.set({ lastActiveTimestamp: now });
+
+        const hrs = Math.floor(elapsedMinutes / 60);
+        const mins = elapsedMinutes % 60;
+        const timeStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins} phút`;
+
+        this.showPetToast(
+          `Chào mừng bạn quay lại! Bạn đã rời xa mạng xã hội được <b>${timeStr}</b>.<br/>Linh vật đã được nghỉ ngơi và hồi phục <b style="color:#FEF08A;">+${bonus}⚡</b> năng lượng! ✨`,
+          { title: "🌿 Phục Hồi Năng Lượng (Digital Detox)" }
+        );
+      } else {
+        chrome.storage.local.set({ lastActiveTimestamp: now });
+      }
+    });
+  }
+
   // ─── Tầng 1: Thông Báo Nhắc Nhở Trọng Tâm (Center Overlay với Backdrop Blur) ───
 
   showPetToast(message, { duration = 0, title = "Linh vật nhắc nhở" } = {}) {

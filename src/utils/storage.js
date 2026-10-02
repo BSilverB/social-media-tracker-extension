@@ -23,6 +23,10 @@ export function createDefaultDayData() {
         usefulCount: 0,
         details: []
       },
+      musicVideos: {
+        totalWatched: 0,
+        totalDurationSeconds: 0
+      },
       shortVideos: { totalSwipes: 0, validViews: 0, loopViews: 0 }
     },
     facebook: {
@@ -35,6 +39,7 @@ export function createDefaultDayData() {
       },
       reels: { totalSwipes: 0, validViews: 0, loopViews: 0 }
     },
+    studyVideoLogs: [],
     reflection: {
       lesson1: "",
       lesson2: "",
@@ -121,6 +126,7 @@ export function loadAppData(callback) {
       if (rawDay.youtube) {
         dayData.youtube.summary = Object.assign({}, dayData.youtube.summary, rawDay.youtube.summary);
         dayData.youtube.shortVideos = Object.assign({}, dayData.youtube.shortVideos, rawDay.youtube.shortVideos);
+        dayData.youtube.musicVideos = Object.assign({ totalWatched: 0, totalDurationSeconds: 0 }, rawDay.youtube.musicVideos || {});
         if (rawDay.youtube.longVideos) {
           dayData.youtube.longVideos.totalWatched = rawDay.youtube.longVideos.totalWatched || 0;
           dayData.youtube.longVideos.impulsiveCount = rawDay.youtube.longVideos.impulsiveCount || 0;
@@ -142,6 +148,7 @@ export function loadAppData(callback) {
             : [];
         }
       }
+      dayData.studyVideoLogs = Array.isArray(rawDay.studyVideoLogs) ? rawDay.studyVideoLogs : [];
       if (rawDay.reflection) {
         dayData.reflection = Object.assign({}, dayData.reflection, rawDay.reflection);
       }
@@ -180,6 +187,9 @@ export function saveDayData(dayData, platformKey, immediate = false) {
         existing.youtube = dayData.youtube;
       } else if (platformKey === "facebook") {
         existing.facebook = dayData.facebook;
+      }
+      if (dayData.studyVideoLogs) {
+        existing.studyVideoLogs = dayData.studyVideoLogs;
       }
 
       const payload = {};

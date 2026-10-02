@@ -41,18 +41,65 @@ function setupTabs() {
   });
 }
 
+// Helper cập nhật thanh tiến trình đa phân đoạn M1, M2, M3
+function updateMilestoneProgress(barId, textId, marks, current, m1, m2, m3, unit) {
+  const bar = document.getElementById(barId);
+  const text = document.getElementById(textId);
+  if (marks.m1) { const el = document.getElementById(marks.m1); if (el) el.innerText = `M1: ${m1}`; }
+  if (marks.m2) { const el = document.getElementById(marks.m2); if (el) el.innerText = `M2: ${m2}`; }
+  if (marks.m3) { const el = document.getElementById(marks.m3); if (el) el.innerText = `M3: ${m3}`; }
+
+  const max = m3 * 1.15;
+  const pct = Math.min(100, Math.round((current / max) * 100));
+  if (bar) {
+    bar.style.width = `${pct}%`;
+    if (current < m1) {
+      bar.style.background = "linear-gradient(90deg, #10B981, #059669)";
+    } else if (current < m2) {
+      bar.style.background = "linear-gradient(90deg, #F59E0B, #D97706)";
+    } else if (current < m3) {
+      bar.style.background = "linear-gradient(90deg, #F97316, #EA580C)";
+    } else {
+      bar.style.background = "linear-gradient(90deg, #EF4444, #DC2626)";
+    }
+  }
+
+  if (text) {
+    let status = "An toàn";
+    let color = "#10B981";
+    if (current >= m3) {
+      status = "Trần đỏ M3";
+      color = "#EF4444";
+    } else if (current >= m2) {
+      status = "Cảnh báo M2";
+      color = "#F97316";
+    } else if (current >= m1) {
+      status = "Nhắc nhở M1";
+      color = "#F59E0B";
+    }
+    text.innerHTML = `<b>${current}</b> / ${m1} ${unit} <span style="color:${color}; font-weight:700;">(${status})</span>`;
+  }
+}
+
 // Cập nhật toàn bộ giao diện từ Storage
 function updateDashboard() {
   const todayKey = getTodayKey();
   const todayBadge = document.getElementById("today-badge");
   if (todayBadge) todayBadge.innerText = todayKey;
 
-  chrome.storage.local.get([todayKey], (result) => {
+  chrome.storage.local.get([todayKey, "app_config"], (result) => {
     const data = result[todayKey] || {};
+    const thresh = result.app_config?.thresholds || {};
+
+    const ytShortsThresh = thresh.youtube?.shorts || { m1: 15, m2: 30, m3: 45 };
+    const ytLongThresh = thresh.youtube?.long || { m1: 3, m2: 5, m3: 8 };
+    const fbFeedsThresh = thresh.facebook?.feeds || { m1: 20, m2: 40, m3: 60 };
+    const fbReelsThresh = thresh.facebook?.reels || { m1: 15, m2: 30, m3: 45 };
 
     const ytSummary = data.youtube?.summary || { activeTimeSeconds: 0, passiveTimeSeconds: 0, reloadCount: 0 };
     const ytShorts = data.youtube?.shortVideos || { totalSwipes: 0, validViews: 0, loopViews: 0 };
     const ytLong = data.youtube?.longVideos || { totalWatched: 0, impulsiveCount: 0, details: [] };
+    const ytMusic = data.youtube?.musicVideos || { totalWatched: 0, totalDurationSeconds: 0 };
 
     const fbSummary = data.facebook?.summary || { activeTimeSeconds: 0, passiveTimeSeconds: 0, reloadCount: 0, feedPostsScrolled: 0 };
     const fbReels = data.facebook?.reels || { totalSwipes: 0, validViews: 0, loopViews: 0 };
@@ -69,9 +116,21 @@ function updateDashboard() {
     document.getElementById("yt-reload-badge").innerText = `F5/Home: ${ytSummary.reloadCount || 0}`;
 
     // Shorts
-    document.getElementById("yt-shorts-swipes").innerText = ytShorts.totalSwipes || 0;
+    const ytShortsTotal = ytShorts.totalSwipes || 0;
+    document.getElementById("yt-shorts-swipes").innerText = ytShortsTotal;
     document.getElementById("yt-shorts-valid").innerText = ytShorts.validViews || 0;
     document.getElementById("yt-shorts-loops").innerText = ytShorts.loopViews || 0;
+
+    updateMilestoneProgress(
+      "yt-shorts-milestone-bar",
+      "yt-shorts-milestone-text",
+      { m1: "yt-shorts-m1-mark", m2: "yt-shorts-m2-mark", m3: "yt-shorts-m3-mark" },
+      ytShortsTotal,
+      ytShortsThresh.m1,
+      ytShortsThresh.m2,
+      ytShortsThresh.m3,
+      "lượt"
+    );
 
     // Long Videos
     const ytLongTotal = ytLong.totalWatched || 0;
@@ -81,6 +140,23 @@ function updateDashboard() {
     document.getElementById("yt-long-total").innerText = ytLongTotal;
     document.getElementById("yt-long-impulsive").innerText = ytImpulsive;
     document.getElementById("yt-impulsive-rate-badge").innerText = `Lướt vội: ${ytImpulsiveRate}%`;
+
+    updateMilestoneProgress(
+      "yt-long-milestone-bar",
+      "yt-long-milestone-text",
+      { m1: "yt-long-m1-mark", m2: "yt-long-m2-mark", m3: "yt-long-m3-mark" },
+      ytLongTotal,
+      ytLongThresh.m1,
+      ytLongThresh.m2,
+      ytLongThresh.m3,
+      "video"
+    );
+
+    // Nhạc tập trung (Music Focus)
+    const ytMusicCount = document.getElementById("yt-music-count");
+    const ytMusicTime = document.getElementById("yt-music-time");
+    if (ytMusicCount) ytMusicCount.innerText = ytMusic.totalWatched || 0;
+    if (ytMusicTime) ytMusicTime.innerText = formatDuration(ytMusic.totalDurationSeconds || 0);
 
     // Danh sách Video dài gần đây
     renderRecentVideos(ytLong.details || []);
@@ -99,17 +175,41 @@ function updateDashboard() {
     document.getElementById("fb-ratio-bar").style.width = `${fbActiveRatio}%`;
     document.getElementById("fb-reload-badge").innerText = `F5/Home: ${fbSummary.reloadCount || 0}`;
 
-    document.getElementById("fb-feed-scrolled").innerText = fbSummary.feedPostsScrolled || 0;
+    const fbFeedCount = fbSummary.feedPostsScrolled || 0;
+    document.getElementById("fb-feed-scrolled").innerText = fbFeedCount;
     document.getElementById("fb-reloads").innerText = fbSummary.reloadCount || 0;
 
-    document.getElementById("fb-reels-swipes").innerText = fbReels.totalSwipes || 0;
+    updateMilestoneProgress(
+      "fb-feed-milestone-bar",
+      "fb-feed-milestone-text",
+      { m1: "fb-feed-m1-mark", m2: "fb-feed-m2-mark", m3: "fb-feed-m3-mark" },
+      fbFeedCount,
+      fbFeedsThresh.m1,
+      fbFeedsThresh.m2,
+      fbFeedsThresh.m3,
+      "bài"
+    );
+
+    const fbReelsTotal = fbReels.totalSwipes || 0;
+    document.getElementById("fb-reels-swipes").innerText = fbReelsTotal;
     document.getElementById("fb-reels-valid").innerText = fbReels.validViews || 0;
     document.getElementById("fb-reels-loops").innerText = fbReels.loopViews || 0;
+
+    updateMilestoneProgress(
+      "fb-reels-milestone-bar",
+      "fb-reels-milestone-text",
+      { m1: "fb-reels-m1-mark", m2: "fb-reels-m2-mark", m3: "fb-reels-m3-mark" },
+      fbReelsTotal,
+      fbReelsThresh.m1,
+      fbReelsThresh.m2,
+      fbReelsThresh.m3,
+      "lượt"
+    );
 
     // --- 3. RENDER TỔNG QUAN PANEL ---
     const totalActive = ytActive + fbActive;
     const totalReloads = (ytSummary.reloadCount || 0) + (fbSummary.reloadCount || 0);
-    const totalSwipes = (ytShorts.totalSwipes || 0) + (fbReels.totalSwipes || 0);
+    const totalSwipes = ytShortsTotal + fbReelsTotal;
     const totalLoops = (ytShorts.loopViews || 0) + (fbReels.loopViews || 0);
 
     document.getElementById("total-active-time").innerText = formatDuration(totalActive);
@@ -446,6 +546,162 @@ function setupSettings() {
       }
     });
   });
+}
+
+// ─── Điều khiển & Đồng hồ đếm ngược Pomodoro Đa Hiệp ──────────────────────────
+let popupPomTimer = null;
+
+function setupPomodoroControls() {
+  const setupBox = document.getElementById("popup-pom-setup-box");
+  const runningBox = document.getElementById("popup-pom-running-box");
+  const statusBadge = document.getElementById("popup-pom-status-badge");
+  const runningTimerEl = document.getElementById("popup-pom-running-timer");
+  const runningModeEl = document.getElementById("popup-pom-running-mode");
+  const btnStart = document.getElementById("btn-popup-start-pom");
+  const btnStop = document.getElementById("btn-popup-stop-pom");
+  const cyclesSelect = document.getElementById("cfg-pomodoro-cycles");
+  const focusInput = document.getElementById("cfg-pomodoro-focus");
+  const breakInput = document.getElementById("cfg-pomodoro-break");
+  const modeMusicLabel = document.getElementById("popup-mode-music-label");
+  const modeStudyLabel = document.getElementById("popup-mode-study-label");
+  const modeRadios = document.querySelectorAll('input[name="popup-pom-mode"]');
+
+  // Đổi style khi chọn mode
+  modeRadios.forEach(r => {
+    r.addEventListener("change", () => {
+      if (r.value === "music") {
+        if (modeMusicLabel) {
+          modeMusicLabel.style.background = "rgba(139,92,246,0.18)";
+          modeMusicLabel.style.borderColor = "#8B5CF6";
+        }
+        if (modeStudyLabel) {
+          modeStudyLabel.style.background = "rgba(255,255,255,0.05)";
+          modeStudyLabel.style.borderColor = "rgba(255,255,255,0.12)";
+        }
+      } else {
+        if (modeStudyLabel) {
+          modeStudyLabel.style.background = "rgba(16,185,129,0.18)";
+          modeStudyLabel.style.borderColor = "#10B981";
+        }
+        if (modeMusicLabel) {
+          modeMusicLabel.style.background = "rgba(255,255,255,0.05)";
+          modeMusicLabel.style.borderColor = "rgba(255,255,255,0.12)";
+        }
+      }
+    });
+  });
+
+  function renderPomodoroState(state) {
+    if (state && state.enabled) {
+      if (setupBox) setupBox.style.display = "none";
+      if (runningBox) runningBox.style.display = "block";
+      if (statusBadge) statusBadge.style.display = "inline-block";
+
+      const updateCountdown = () => {
+        const elapsed = Date.now() - (state.sessionStartTime || Date.now());
+        const totalMs = (state.durationMinutes || 25) * 60 * 1000;
+        const remMs = Math.max(0, totalMs - elapsed);
+        const remSec = Math.ceil(remMs / 1000);
+        const m = Math.floor(remSec / 60);
+        const s = String(remSec % 60).padStart(2, "0");
+        const icon = state.sessionType === "focus" ? "🍅" : "☕";
+        const stage = state.sessionType === "focus" ? "Focus" : "Nghỉ";
+
+        if (runningTimerEl) {
+          runningTimerEl.textContent = `${icon} Hiệp ${state.currentCycle}/${state.totalCycles} ${stage} ${m}:${s}`;
+          runningTimerEl.style.color = state.sessionType === "focus" ? "#38BDF8" : "#34D399";
+        }
+        if (runningModeEl) {
+          runningModeEl.textContent = `Mode: ${state.focusMode === "music" ? "🎵 Làm việc với Âm nhạc" : "📚 Chế độ Học tập"}`;
+        }
+      };
+
+      updateCountdown();
+      if (popupPomTimer) clearInterval(popupPomTimer);
+      popupPomTimer = setInterval(updateCountdown, 1000);
+    } else {
+      if (popupPomTimer) {
+        clearInterval(popupPomTimer);
+        popupPomTimer = null;
+      }
+      if (runningBox) runningBox.style.display = "none";
+      if (setupBox) setupBox.style.display = "block";
+      if (statusBadge) statusBadge.style.display = "none";
+    }
+  }
+
+  // Load trạng thái ban đầu
+  chrome.storage.local.get(["pomodoro_state", "focus_mode_type"], (res) => {
+    if (res.pomodoro_state) {
+      renderPomodoroState(res.pomodoro_state);
+    }
+    if (res.focus_mode_type) {
+      const targetRadio = document.querySelector(`input[name="popup-pom-mode"][value="${res.focus_mode_type}"]`);
+      if (targetRadio) {
+        targetRadio.checked = true;
+        targetRadio.dispatchEvent(new Event("change"));
+      }
+    }
+  });
+
+  // Lắng nghe thay đổi storage từ tab web
+  chrome.storage.onChanged.addListener((changes, ns) => {
+    if (ns === "local" && changes.pomodoro_state) {
+      renderPomodoroState(changes.pomodoro_state.newValue);
+    }
+  });
+
+  // Nút Bắt đầu Pomodoro
+  if (btnStart) {
+    btnStart.addEventListener("click", () => {
+      const totalCycles = parseInt(cyclesSelect?.value) || 2;
+      const focusMinutes = parseInt(focusInput?.value) || 25;
+      const breakMinutes = parseInt(breakInput?.value) || 5;
+      const selectedMode = document.querySelector('input[name="popup-pom-mode"]:checked')?.value || "music";
+
+      const newPomState = {
+        enabled: true,
+        totalCycles,
+        currentCycle: 1,
+        sessionType: "focus",
+        sessionStartTime: Date.now(),
+        durationMinutes: focusMinutes,
+        focusMinutes,
+        breakMinutes,
+        focusMode: selectedMode
+      };
+
+      chrome.storage.local.set({
+        pomodoro_state: newPomState,
+        focus_mode_type: selectedMode
+      }, () => {
+        renderPomodoroState(newPomState);
+        chrome.tabs.query({ active: true }, (tabs) => {
+          tabs.forEach(t => {
+            if (t.id) chrome.tabs.sendMessage(t.id, { type: "START_POMODORO", setup: newPomState }).catch(() => {});
+          });
+        });
+      });
+    });
+  }
+
+  // Nút Dừng Pomodoro
+  if (btnStop) {
+    btnStop.addEventListener("click", () => {
+      chrome.storage.local.get(["pomodoro_state"], (res) => {
+        const s = res.pomodoro_state || {};
+        s.enabled = false;
+        chrome.storage.local.set({ pomodoro_state: s }, () => {
+          renderPomodoroState(s);
+          chrome.tabs.query({ active: true }, (tabs) => {
+            tabs.forEach(t => {
+              if (t.id) chrome.tabs.sendMessage(t.id, { type: "STOP_POMODORO" }).catch(() => {});
+            });
+          });
+        });
+      });
+    });
+  }
 }
 
 // ─── Thiết lập Linh vật Pet Đa Chế Độ (Giai đoạn 4) ───────────────────────────
@@ -953,17 +1209,254 @@ function setupDashboardButton() {
   if (btnHeader) btnHeader.addEventListener("click", openDashboard);
 }
 
+// ─── Dev Test Mode Controller ────────────────────────────────────────────────
+function showDevToast(msg) {
+  const toast = document.getElementById("dev-toast-msg");
+  if (!toast) return;
+  toast.innerText = msg;
+  toast.style.display = "block";
+  setTimeout(() => {
+    if (toast) toast.style.display = "none";
+  }, 2500);
+}
+
+function sendDevMessageToActiveTab(msg, onReply) {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (tabs && tabs[0]?.id) {
+      chrome.tabs.sendMessage(tabs[0].id, msg, (res) => {
+        if (chrome.runtime.lastError) {
+          showDevToast("⚠️ Tab hiện tại không phải YouTube/Facebook hoặc chưa reload!");
+        } else {
+          if (onReply) onReply(res);
+        }
+      });
+    } else {
+      showDevToast("⚠️ Không tìm thấy tab hoạt động!");
+    }
+  });
+}
+
+function setupDevMode() {
+  const toggleDev = document.getElementById("toggle-dev-mode");
+  const tabDevBtn = document.getElementById("tab-dev");
+  const devEnergyVal = document.getElementById("dev-energy-val");
+  const sliderEnergy = document.getElementById("dev-slider-energy");
+
+  if (!toggleDev || !tabDevBtn) return;
+
+  // 1. Kiểm tra trạng thái lưu
+  chrome.storage.local.get(["dev_mode_enabled", "petState", "pet_state"], (res) => {
+    const isEnabled = !!res.dev_mode_enabled;
+    toggleDev.checked = isEnabled;
+    tabDevBtn.style.display = isEnabled ? "flex" : "none";
+
+    const pet = res.petState || res.pet_state || { energy: 100 };
+    if (devEnergyVal) devEnergyVal.innerText = `${pet.energy ?? 100}%`;
+    if (sliderEnergy) sliderEnergy.value = pet.energy ?? 100;
+  });
+
+  // 2. Chuyển đổi công tắc Dev
+  toggleDev.addEventListener("change", () => {
+    const enabled = toggleDev.checked;
+    chrome.storage.local.set({ dev_mode_enabled: enabled });
+    tabDevBtn.style.display = enabled ? "flex" : "none";
+    if (!enabled && tabDevBtn.classList.contains("active")) {
+      const tabYt = document.getElementById("tab-yt");
+      if (tabYt) tabYt.click();
+    }
+  });
+
+  // 3. Helper cập nhật năng lượng Pet
+  const applyEnergy = (val) => {
+    val = Math.max(0, Math.min(100, Number(val) || 0));
+    if (sliderEnergy) sliderEnergy.value = val;
+    if (devEnergyVal) devEnergyVal.innerText = `${val}%`;
+
+    chrome.storage.local.get(["petState", "pet_state"], (res) => {
+      const state = res.petState || res.pet_state || { energy: 100, mood: "happy" };
+      state.energy = val;
+      if (val >= 50) state.mood = "happy";
+      else if (val >= 20) state.mood = "neutral";
+      else state.mood = "sad";
+
+      chrome.storage.local.set({ petState: state, pet_state: state }, () => {
+        updatePetBanner();
+        showDevToast(`⚡ Đã chỉnh năng lượng Pet: ${val}%`);
+      });
+    });
+  };
+
+  document.getElementById("dev-btn-energy-0")?.addEventListener("click", () => applyEnergy(0));
+  document.getElementById("dev-btn-energy-10")?.addEventListener("click", () => applyEnergy(10));
+  document.getElementById("dev-btn-energy-50")?.addEventListener("click", () => applyEnergy(50));
+  document.getElementById("dev-btn-energy-100")?.addEventListener("click", () => applyEnergy(100));
+
+  sliderEnergy?.addEventListener("input", (e) => {
+    const val = Number(e.target.value);
+    if (devEnergyVal) devEnergyVal.innerText = `${val}%`;
+  });
+  sliderEnergy?.addEventListener("change", (e) => {
+    applyEnergy(Number(e.target.value));
+  });
+
+  // 4. Phiên lướt & Mục tiêu
+  document.getElementById("dev-btn-expire-session")?.addEventListener("click", () => {
+    sendDevMessageToActiveTab({ type: "DEV_EXPIRE_SESSION" }, () => {
+      showDevToast("⏱️ Đã kích hoạt hết giờ phiên lướt!");
+    });
+  });
+
+  document.getElementById("dev-btn-open-intent")?.addEventListener("click", () => {
+    sendDevMessageToActiveTab({ type: "DEV_OPEN_INTENT" }, () => {
+      showDevToast("🎯 Đã mở khung hỏi Mục tiêu!");
+    });
+  });
+
+  // 5. Mốc Cảnh báo & Ma sát (M1, M2, M3, F5)
+  document.getElementById("dev-btn-trigger-m1")?.addEventListener("click", () => {
+    sendDevMessageToActiveTab({ type: "DEV_TRIGGER_MILESTONE", milestone: "m1" }, () => {
+      showDevToast("🔔 Đã kích hoạt Mốc 1 (Toast Pet)");
+    });
+  });
+
+  document.getElementById("dev-btn-trigger-m2")?.addEventListener("click", () => {
+    sendDevMessageToActiveTab({ type: "DEV_TRIGGER_MILESTONE", milestone: "m2" }, () => {
+      showDevToast("⚠️ Đã kích hoạt Mốc 2 (Modal 10s)");
+    });
+  });
+
+  document.getElementById("dev-btn-trigger-m3")?.addEventListener("click", () => {
+    sendDevMessageToActiveTab({ type: "DEV_TRIGGER_MILESTONE", milestone: "m3" }, () => {
+      showDevToast("🚫 Đã kích hoạt Mốc 3 (Modal Chặn)");
+    });
+  });
+
+  document.getElementById("dev-btn-trigger-f5")?.addEventListener("click", () => {
+    sendDevMessageToActiveTab({ type: "DEV_TRIGGER_MILESTONE", milestone: "f5" }, () => {
+      showDevToast("⚡ Đã kích hoạt cảnh báo F5 Spam");
+    });
+  });
+
+  // 6. Streak Focus (0, 3, 7)
+  const applyStreak = (days) => {
+    chrome.storage.local.get(["petState", "pet_state", "petAccessories"], (res) => {
+      const state = res.petState || res.pet_state || { energy: 100, mood: "happy" };
+      state.currentStreak = days;
+      state.streakDays = days;
+      state.lastStreakDate = getTodayKey();
+
+      const accessories = res.petAccessories || { unlockedItems: [], equipped: { head: null, body: null } };
+      const unlocked = new Set(accessories.unlockedItems || []);
+      if (days >= 3) unlocked.add("sunglasses");
+      else unlocked.delete("sunglasses");
+      if (days >= 7) unlocked.add("laurel");
+      else unlocked.delete("laurel");
+      accessories.unlockedItems = Array.from(unlocked);
+
+      chrome.storage.local.set({ petState: state, pet_state: state, petAccessories: accessories }, () => {
+        updatePetBanner();
+        setupWardrobeControls();
+        showDevToast(`🔥 Đã thiết lập Streak: ${days} ngày!`);
+      });
+    });
+  };
+
+  document.getElementById("dev-btn-streak-0")?.addEventListener("click", () => applyStreak(0));
+  document.getElementById("dev-btn-streak-3")?.addEventListener("click", () => applyStreak(3));
+  document.getElementById("dev-btn-streak-7")?.addEventListener("click", () => applyStreak(7));
+
+  // 7. Hệ thống: 22h Phản tư & Pomodoro Break
+  document.getElementById("dev-btn-reflection-22h")?.addEventListener("click", () => {
+    chrome.runtime.sendMessage({ type: "TRIGGER_DEV_REFLECTION" }, () => {
+      showDevToast("🌙 Đã mở trang Phản tư 22h00!");
+    });
+  });
+
+  document.getElementById("dev-btn-toggle-pomodoro")?.addEventListener("click", () => {
+    chrome.storage.local.get(["pomodoro_state"], (res) => {
+      const current = res.pomodoro_state || { isBreak: false, mode: "focus" };
+      const newBreak = !current.isBreak;
+      current.isBreak = newBreak;
+      current.mode = newBreak ? "break" : "focus";
+      chrome.storage.local.set({ pomodoro_state: current }, () => {
+        showDevToast(`🍅 Pomodoro: ${newBreak ? "☕ Đang nghỉ ngơi (Break)" : "🎯 Đang tập trung (Focus)"}`);
+      });
+    });
+  });
+
+  // 8. Reset toàn bộ dữ liệu Test
+  document.getElementById("dev-btn-reset-all")?.addEventListener("click", () => {
+    if (!confirm("Bạn có chắc chắn muốn khôi phục dữ liệu gốc không? (Năng lượng 100⚡, Streak 0 ngày, xóa dữ liệu test hôm nay)")) return;
+    chrome.runtime.sendMessage({ type: "RESET_DEV_DATA" }, () => {
+      showDevToast("✓ Đã khôi phục dữ liệu gốc!");
+      updateDashboard();
+      updatePetBanner();
+      setupWardrobeControls();
+    });
+  });
+}
+
+// ─── Digital Detox: Hồi phục năng lượng khi tắt ứng dụng ─────────────────────
+function checkIdleRecoveryPopup() {
+  chrome.storage.local.get(["lastActiveTimestamp", "petState", "pet_state"], (res) => {
+    const lastActive = res.lastActiveTimestamp;
+    const now = Date.now();
+    if (!lastActive) {
+      chrome.storage.local.set({ lastActiveTimestamp: now });
+      return;
+    }
+    const elapsedMinutes = Math.floor((now - lastActive) / (60 * 1000));
+    if (elapsedMinutes >= 30) {
+      const bonusSteps = Math.floor(elapsedMinutes / 30);
+      const bonus = bonusSteps * 5;
+      const pet = res.petState || res.pet_state || { energy: 100, mood: "happy" };
+      const oldEnergy = pet.energy ?? 100;
+      const newEnergy = Math.min(100, oldEnergy + bonus);
+      pet.energy = newEnergy;
+      if (newEnergy >= 50) pet.mood = "happy";
+      else if (newEnergy >= 20) pet.mood = "neutral";
+
+      chrome.storage.local.set({
+        petState: pet,
+        pet_state: pet,
+        lastActiveTimestamp: now
+      }, () => {
+        updatePetBanner();
+        const hrs = Math.floor(elapsedMinutes / 60);
+        const mins = elapsedMinutes % 60;
+        const timeStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins} phút`;
+        const toast = document.createElement("div");
+        toast.style.cssText = `
+          position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:999999;
+          background:linear-gradient(135deg, rgba(16,185,129,0.95), rgba(6,182,212,0.95));
+          color:#fff; padding:8px 14px; border-radius:12px; font-size:11px; font-weight:700;
+          box-shadow:0 8px 25px rgba(0,0,0,0.5); text-align:center; max-width:320px;
+          animation:mindfulBubblePop 0.3s ease;
+        `;
+        toast.innerHTML = `🌿 Digital Detox (${timeStr})<br/><span style="font-size:10px; font-weight:normal;">Pet đã được nghỉ ngơi và hồi phục <b style="color:#FEF08A;">+${bonus}⚡</b>!</span>`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 4500);
+      });
+    } else {
+      chrome.storage.local.set({ lastActiveTimestamp: now });
+    }
+  });
+}
+
 // Khởi chạy khi popup load
 document.addEventListener("DOMContentLoaded", () => {
   setupTabs();
   setupResetButton();
   setupSettings();
+  setupPomodoroControls();
   setupPetControls();
   setupWardrobeControls();
   setupReflectionButton();
   setupDashboardButton();
+  setupDevMode();
   updateDashboard();
   updatePetBanner();
+  checkIdleRecoveryPopup();
 });
 
 // Lắng nghe thay đổi real-time từ storage

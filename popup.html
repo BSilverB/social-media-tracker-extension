@@ -329,6 +329,9 @@
       </div>
     </div>
     <div style="display:flex; align-items:center; gap:6px;">
+      <label style="display:flex; align-items:center; gap:4px; font-size:10px; color:#F59E0B; cursor:pointer; background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.3); padding:2px 6px; border-radius:10px;" title="Bật/Tắt Chế độ Test dành cho Kiểm thử viên">
+        <input type="checkbox" id="toggle-dev-mode" style="accent-color:#F59E0B; cursor:pointer;"> 🧪 Test Mode
+      </label>
       <button id="header-btn-dashboard" type="button" style="background:rgba(6,182,212,0.15); border:1px solid rgba(6,182,212,0.4); color:#67E8F9; border-radius:12px; font-size:10px; font-weight:700; padding:2px 8px; cursor:pointer;" title="Mở trang Báo Cáo Phân Tích Xu Hướng">📊 Báo Cáo</button>
       <div id="today-badge" class="date-badge">2026-09-13</div>
     </div>
@@ -368,6 +371,7 @@
     <button class="tab-btn" id="tab-fb" data-target="panel-fb">👥 Facebook</button>
     <button class="tab-btn" id="tab-all" data-target="panel-all">📊 Tổng quan</button>
     <button class="tab-btn" id="tab-cfg" data-target="panel-cfg">⚙️ Cài đặt</button>
+    <button class="tab-btn" id="tab-dev" data-target="panel-dev" style="display: none; color:#F59E0B;">🧪 Test</button>
   </div>
 
   <!-- PANEL 1: YOUTUBE -->
@@ -413,6 +417,26 @@
           <div id="yt-shorts-loops" class="metric-number" style="color:#F59E0B">0</div>
         </div>
       </div>
+      <!-- Multi-segment Milestone Progress Bar for Shorts -->
+      <div style="margin-top: 10px; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 7px 10px; border: 1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 5px;">
+          <span style="font-size:10px; font-weight:700; color:#CBD5E1; display:flex; align-items:center; gap:4px;">
+            🎯 Tiến trình Mốc giới hạn
+          </span>
+          <span id="yt-shorts-milestone-text" style="font-size:10px; font-weight:700; color:#10B981;">
+            0 / 15 (M1)
+          </span>
+        </div>
+        <div style="position:relative; height:6px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
+          <div id="yt-shorts-milestone-bar" style="height:100%; width:0%; background:linear-gradient(90deg, #10B981, #059669); transition:width 0.4s ease, background 0.3s ease;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:9px; color:var(--text-muted); margin-top:4px;">
+          <span>0</span>
+          <span id="yt-shorts-m1-mark" style="color:#10B981;">M1: 15</span>
+          <span id="yt-shorts-m2-mark" style="color:#F59E0B;">M2: 30</span>
+          <span id="yt-shorts-m3-mark" style="color:#EF4444;">M3: 45</span>
+        </div>
+      </div>
     </div>
 
     <!-- YouTube Long Videos Card -->
@@ -431,8 +455,46 @@
           <div id="yt-long-impulsive" class="metric-number" style="color:#EF4444">0</div>
         </div>
       </div>
+      <!-- Multi-segment Milestone Progress Bar for Long Videos -->
+      <div style="margin-top: 6px; margin-bottom:8px; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 7px 10px; border: 1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 5px;">
+          <span style="font-size:10px; font-weight:700; color:#CBD5E1; display:flex; align-items:center; gap:4px;">
+            🎯 Tiến trình Mốc giới hạn
+          </span>
+          <span id="yt-long-milestone-text" style="font-size:10px; font-weight:700; color:#10B981;">
+            0 / 3 (M1)
+          </span>
+        </div>
+        <div style="position:relative; height:6px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
+          <div id="yt-long-milestone-bar" style="height:100%; width:0%; background:linear-gradient(90deg, #10B981, #059669); transition:width 0.4s ease, background 0.3s ease;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:9px; color:var(--text-muted); margin-top:4px;">
+          <span>0</span>
+          <span id="yt-long-m1-mark" style="color:#10B981;">M1: 3</span>
+          <span id="yt-long-m2-mark" style="color:#F59E0B;">M2: 5</span>
+          <span id="yt-long-m3-mark" style="color:#EF4444;">M3: 8</span>
+        </div>
+      </div>
       <div id="yt-recent-long-list">
         <!-- Danh sách video dài gần đây -->
+      </div>
+    </div>
+
+    <!-- YouTube Music Focus Card -->
+    <div class="card" style="border: 1px solid rgba(139,92,246,0.3); background: rgba(139,92,246,0.05);">
+      <div class="card-header">
+        <span class="card-title" style="color: #C4B5FD;">🎵 Nhạc Tập Trung (Music Focus)</span>
+        <span class="badge-info" style="background: rgba(139,92,246,0.2); color:#C4B5FD;">Không tính vào giới hạn</span>
+      </div>
+      <div class="stat-grid-2">
+        <div class="metric-pill">
+          <div class="metric-name">Bài nhạc đã nghe</div>
+          <div id="yt-music-count" class="metric-number" style="color:#A78BFA">0</div>
+        </div>
+        <div class="metric-pill">
+          <div class="metric-name">Thời gian nghe</div>
+          <div id="yt-music-time" class="metric-number" style="color:#38BDF8">0m 0s</div>
+        </div>
       </div>
     </div>
 
@@ -486,6 +548,26 @@
           <div id="fb-reloads" class="metric-number" style="color:#F59E0B">0</div>
         </div>
       </div>
+      <!-- Multi-segment Milestone Progress Bar for Facebook Feeds -->
+      <div style="margin-top: 10px; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 7px 10px; border: 1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 5px;">
+          <span style="font-size:10px; font-weight:700; color:#CBD5E1; display:flex; align-items:center; gap:4px;">
+            🎯 Tiến trình Mốc giới hạn
+          </span>
+          <span id="fb-feed-milestone-text" style="font-size:10px; font-weight:700; color:#10B981;">
+            0 / 20 (M1)
+          </span>
+        </div>
+        <div style="position:relative; height:6px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
+          <div id="fb-feed-milestone-bar" style="height:100%; width:0%; background:linear-gradient(90deg, #10B981, #059669); transition:width 0.4s ease, background 0.3s ease;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:9px; color:var(--text-muted); margin-top:4px;">
+          <span>0</span>
+          <span id="fb-feed-m1-mark" style="color:#10B981;">M1: 20</span>
+          <span id="fb-feed-m2-mark" style="color:#F59E0B;">M2: 40</span>
+          <span id="fb-feed-m3-mark" style="color:#EF4444;">M3: 60</span>
+        </div>
+      </div>
     </div>
 
     <!-- Facebook Reels Card -->
@@ -505,6 +587,26 @@
         <div class="metric-pill">
           <div class="metric-name">Lặp lại (Loop)</div>
           <div id="fb-reels-loops" class="metric-number" style="color:#F59E0B">0</div>
+        </div>
+      </div>
+      <!-- Multi-segment Milestone Progress Bar for Facebook Reels -->
+      <div style="margin-top: 10px; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 7px 10px; border: 1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 5px;">
+          <span style="font-size:10px; font-weight:700; color:#CBD5E1; display:flex; align-items:center; gap:4px;">
+            🎯 Tiến trình Mốc giới hạn
+          </span>
+          <span id="fb-reels-milestone-text" style="font-size:10px; font-weight:700; color:#10B981;">
+            0 / 15 (M1)
+          </span>
+        </div>
+        <div style="position:relative; height:6px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
+          <div id="fb-reels-milestone-bar" style="height:100%; width:0%; background:linear-gradient(90deg, #10B981, #059669); transition:width 0.4s ease, background 0.3s ease;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:9px; color:var(--text-muted); margin-top:4px;">
+          <span>0</span>
+          <span id="fb-reels-m1-mark" style="color:#10B981;">M1: 15</span>
+          <span id="fb-reels-m2-mark" style="color:#F59E0B;">M2: 30</span>
+          <span id="fb-reels-m3-mark" style="color:#EF4444;">M3: 45</span>
         </div>
       </div>
     </div>
@@ -835,28 +937,72 @@
       </div>
     </div>
 
-    <!-- Pomodoro Settings Card -->
-    <div class="card">
+    <!-- Pomodoro Settings & Live Controller Card -->
+    <div class="card" id="card-pomodoro-wrapper" style="border: 1px solid rgba(139, 92, 246, 0.4); background: rgba(139, 92, 246, 0.06);">
       <div class="card-header">
-        <span class="card-title">🍅 Chế độ Pomodoro</span>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-          <span style="font-size:10px;color:var(--text-secondary);">Bật</span>
-          <input type="checkbox" id="cfg-pomodoro-enabled" style="width:14px;height:14px;cursor:pointer;accent-color:#8B5CF6;">
-        </label>
+        <span class="card-title" style="color:#C4B5FD;">🍅 Chế độ Pomodoro Đa Hiệp</span>
+        <span id="popup-pom-status-badge" class="badge-info" style="display:none; background:rgba(139,92,246,0.3); color:#C4B5FD;">Đang chạy</span>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <div>
-          <label style="font-size:10px;color:#A78BFA;font-weight:bold;">Focus (phút)</label>
-          <input type="number" id="cfg-pomodoro-focus" value="25" min="5" max="120"
-            style="width:100%;box-sizing:border-box;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;padding:4px 6px;font-size:12px;margin-top:2px;">
+
+      <!-- Live Running Box (hiện khi đang chạy) -->
+      <div id="popup-pom-running-box" style="display:none; background:rgba(0,0,0,0.35); border-radius:10px; padding:12px; margin-bottom:10px; border:1px solid rgba(139,92,246,0.3); text-align:center;">
+        <div style="font-size:10px; color:#94A3B8; margin-bottom:4px; font-weight:700;">TIẾN TRÌNH HIỆN TẠI</div>
+        <div id="popup-pom-running-timer" style="font-size:18px; font-weight:800; color:#38BDF8; font-family:monospace; margin-bottom:4px;">
+          🍅 Hiệp 1/2 Focus 24:50
         </div>
-        <div>
-          <label style="font-size:10px;color:#06B6D4;font-weight:bold;">Break (phút)</label>
-          <input type="number" id="cfg-pomodoro-break" value="5" min="1" max="30"
-            style="width:100%;box-sizing:border-box;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;padding:4px 6px;font-size:12px;margin-top:2px;">
+        <div id="popup-pom-running-mode" style="font-size:10px; color:#CBD5E1; margin-bottom:10px;">
+          Mode: 🎵 Làm việc với Âm nhạc
         </div>
+        <button id="btn-popup-stop-pom" type="button" style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.6); color:#FCA5A5; font-size:11px; font-weight:700; padding:6px 14px; border-radius:6px; cursor:pointer;">
+          ⏹ Dừng Pomodoro
+        </button>
       </div>
-      <div style="font-size:10px;color:var(--text-muted);margin-top:6px;">Khi đang Break Session: Overlay và cảnh báo bị vô hiệu hóa.</div>
+
+      <!-- Setup Box (hiện khi chưa chạy) -->
+      <div id="popup-pom-setup-box">
+        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:6px; margin-bottom:8px;">
+          <div>
+            <label style="font-size:9.5px; color:#CBD5E1; font-weight:bold;">Số hiệp</label>
+            <select id="cfg-pomodoro-cycles" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:11px; margin-top:2px;">
+              <option value="1">1 hiệp</option>
+              <option value="2" selected>2 hiệp</option>
+              <option value="3">3 hiệp</option>
+              <option value="4">4 hiệp</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:9.5px; color:#A78BFA; font-weight:bold;">Focus (phút)</label>
+            <input type="number" id="cfg-pomodoro-focus" value="25" min="5" max="120"
+              style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:11px; margin-top:2px;">
+          </div>
+          <div>
+            <label style="font-size:9.5px; color:#06B6D4; font-weight:bold;">Break (phút)</label>
+            <input type="number" id="cfg-pomodoro-break" value="5" min="1" max="30"
+              style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:11px; margin-top:2px;">
+          </div>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <label style="font-size:9.5px; color:#CBD5E1; font-weight:bold; display:block; margin-bottom:4px;">Chế độ khi Focus:</label>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+            <label id="popup-mode-music-label" style="display:flex; align-items:center; gap:5px; padding:6px 8px; background:rgba(139,92,246,0.18); border:1.5px solid #8B5CF6; border-radius:6px; cursor:pointer;">
+              <input type="radio" name="popup-pom-mode" value="music" checked style="accent-color:#8B5CF6;">
+              <span style="font-size:10px; font-weight:700; color:#C4B5FD;">🎵 Mode Nhạc</span>
+            </label>
+            <label id="popup-mode-study-label" style="display:flex; align-items:center; gap:5px; padding:6px 8px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:6px; cursor:pointer;">
+              <input type="radio" name="popup-pom-mode" value="study" style="accent-color:#10B981;">
+              <span style="font-size:10px; font-weight:700; color:#6EE7B7;">📚 Mode Học</span>
+            </label>
+          </div>
+        </div>
+
+        <button id="btn-popup-start-pom" type="button" style="width:100%; background:linear-gradient(135deg, #8B5CF6, #6366F1); border:none; color:#fff; font-weight:700; padding:8px 0; border-radius:7px; cursor:pointer; font-size:11.5px; box-shadow:0 3px 12px rgba(139,92,246,0.35);">
+          🚀 Bắt Đầu Pomodoro Ngay
+        </button>
+      </div>
+
+      <!-- Hidden legacy checkbox for backwards compatibility -->
+      <input type="checkbox" id="cfg-pomodoro-enabled" style="display:none;">
     </div>
 
     <!-- Keyword Target List Card -->
@@ -880,6 +1026,89 @@ tài chính" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,0.3);
     </div>
   </div>
 
+  <!-- PANEL 5: CHẾ ĐỘ TEST KIỂM THỬ (TEST MODE) -->
+  <div id="panel-dev" class="tab-panel" style="display: none;">
+    <!-- Card 1: Năng Lượng Pet Simulation -->
+    <div class="card" style="border: 1px solid rgba(245,158,11,0.4); background: rgba(245,158,11,0.06);">
+      <div class="card-header">
+        <span class="card-title" style="color: #FBBF24;">⚡ Năng lượng Pet (Simulation)</span>
+        <span id="dev-energy-val" style="font-size:11px; font-weight:700; color:#FBBF24;">100%</span>
+      </div>
+      <div style="font-size:10px; color:var(--text-secondary); margin-bottom:8px;">
+        Thử nghiệm các mốc năng lượng: &lt;15⚡ (Ép Grayscale), &lt;10⚡ (Chặn gia hạn), 0⚡ (Kiệt sức, reset streak).
+      </div>
+      <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:6px; margin-bottom:10px;">
+        <button id="dev-btn-energy-0" type="button" class="dev-btn" style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); color:#FCA5A5;">0⚡ Kiệt sức</button>
+        <button id="dev-btn-energy-10" type="button" class="dev-btn" style="background:rgba(245,158,11,0.2); border:1px solid rgba(245,158,11,0.5); color:#FCD34D;">10⚡ Nguy cấp</button>
+        <button id="dev-btn-energy-50" type="button" class="dev-btn" style="background:rgba(59,130,246,0.2); border:1px solid rgba(59,130,246,0.5); color:#93C5FD;">50⚡ Trung bình</button>
+        <button id="dev-btn-energy-100" type="button" class="dev-btn" style="background:rgba(16,185,129,0.2); border:1px solid rgba(16,185,129,0.5); color:#6EE7B7;">100⚡ Tối đa</button>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:10px; color:var(--text-muted);">Tùy chỉnh:</span>
+        <input type="range" id="dev-slider-energy" min="0" max="100" value="100" style="flex:1; accent-color:#F59E0B; cursor:pointer;">
+      </div>
+    </div>
+
+    <!-- Card 2: Phiên Lướt & Mục Tiêu -->
+    <div class="card" style="border: 1px solid rgba(139,92,246,0.4); background: rgba(139,92,246,0.06);">
+      <div class="card-header">
+        <span class="card-title" style="color: #C4B5FD;">🎯 Phiên Lướt & Mục Tiêu</span>
+      </div>
+      <div style="font-size:10px; color:var(--text-secondary); margin-bottom:8px;">
+        Kích hoạt thông báo hết giờ phiên lướt hoặc kiểm tra giao diện hỏi mục tiêu có ảnh người thương.
+      </div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+        <button id="dev-btn-expire-session" type="button" class="dev-btn" style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); color:#FCA5A5;">⏱️ Hết giờ phiên ngay</button>
+        <button id="dev-btn-open-intent" type="button" class="dev-btn" style="background:rgba(139,92,246,0.2); border:1px solid rgba(139,92,246,0.5); color:#C4B5FD;">🎯 Hiện khung Mục tiêu</button>
+      </div>
+    </div>
+
+    <!-- Card 3: Mốc Cảnh Báo & Ma Sát (Milestones) -->
+    <div class="card" style="border: 1px solid rgba(6,182,212,0.4); background: rgba(6,182,212,0.06);">
+      <div class="card-header">
+        <span class="card-title" style="color: #67E8F9;">🔔 Mốc Cảnh Báo & Ma Sát</span>
+      </div>
+      <div style="font-size:10px; color:var(--text-secondary); margin-bottom:8px;">
+        Kích hoạt ngay các cấp độ cảnh báo để kiểm tra Pet Toast và Pet Center Modal:
+      </div>
+      <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:6px;">
+        <button id="dev-btn-trigger-m1" type="button" class="dev-btn" style="background:rgba(245,158,11,0.2); border:1px solid rgba(245,158,11,0.5); color:#FCD34D;">🔔 Mốc 1 (Toast Pet)</button>
+        <button id="dev-btn-trigger-m2" type="button" class="dev-btn" style="background:rgba(249,115,22,0.2); border:1px solid rgba(249,115,22,0.5); color:#FDBA74;">⚠️ Mốc 2 (Modal 10s)</button>
+        <button id="dev-btn-trigger-m3" type="button" class="dev-btn" style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); color:#FCA5A5;">🚫 Mốc 3 (Modal Chặn)</button>
+        <button id="dev-btn-trigger-f5" type="button" class="dev-btn" style="background:rgba(168,85,247,0.2); border:1px solid rgba(168,85,247,0.5); color:#D8B4FE;">⚡ F5 Spam (Toast)</button>
+      </div>
+    </div>
+
+    <!-- Card 4: Chuỗi Focus Streak & Trang Phục -->
+    <div class="card" style="border: 1px solid rgba(16,185,129,0.4); background: rgba(16,185,129,0.06);">
+      <div class="card-header">
+        <span class="card-title" style="color: #6EE7B7;">🔥 Chuỗi Focus Streak</span>
+      </div>
+      <div style="font-size:10px; color:var(--text-secondary); margin-bottom:8px;">
+        Thay đổi chuỗi ngày liên tiếp để kiểm tra mở khóa trang phục Pet (Mũ cử nhân, Vương miện):
+      </div>
+      <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:6px;">
+        <button id="dev-btn-streak-0" type="button" class="dev-btn" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:#94A3B8;">0 Ngày</button>
+        <button id="dev-btn-streak-3" type="button" class="dev-btn" style="background:rgba(16,185,129,0.2); border:1px solid rgba(16,185,129,0.5); color:#6EE7B7;">🎓 3 Ngày</button>
+        <button id="dev-btn-streak-7" type="button" class="dev-btn" style="background:rgba(245,158,11,0.2); border:1px solid rgba(245,158,11,0.5); color:#FCD34D;">👑 7 Ngày</button>
+      </div>
+    </div>
+
+    <!-- Card 5: Hệ Thống & Reset -->
+    <div class="card" style="border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.02);">
+      <div class="card-header">
+        <span class="card-title">⚙️ Hệ Thống & Reset Dữ Liệu Test</span>
+      </div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-bottom:8px;">
+        <button id="dev-btn-reflection-22h" type="button" class="dev-btn" style="background:rgba(139,92,246,0.25); border:1px solid rgba(139,92,246,0.5); color:#C4B5FD;">🌙 Kích hoạt Phản tư 22h</button>
+        <button id="dev-btn-toggle-pomodoro" type="button" class="dev-btn" style="background:rgba(6,182,212,0.25); border:1px solid rgba(6,182,212,0.5); color:#67E8F9;">🍅 Đổi Pomodoro Break</button>
+      </div>
+      <button id="dev-btn-reset-all" type="button" style="width:100%; padding:8px 0; background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.6); color:#FCA5A5; font-size:11px; font-weight:700; border-radius:6px; cursor:pointer;">
+        🔄 Khôi phục dữ liệu gốc (100⚡, 0 ngày streak, xóa log test)
+      </button>
+      <div id="dev-toast-msg" style="display:none; text-align:center; font-size:10px; color:#10B981; margin-top:6px; font-weight:bold;"></div>
+    </div>
+  </div>
 
   <!-- Footer -->
   <div class="footer">

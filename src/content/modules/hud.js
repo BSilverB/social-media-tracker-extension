@@ -14,16 +14,24 @@ export class HUDManager {
    * @param {boolean} opts.isFB
    * @param {Function} opts.getThresholds  - () => { shorts, long }
    * @param {Function} opts.getPomodoroLabel - () => string | null
+   * @param {Function} opts.getPomodoroActive - () => boolean
+   * @param {Function} opts.onStartPomodoroRequest - () => void
+   * @param {Function} opts.onStopPomodoro - () => void
    * @param {boolean} opts.isBreakSession
    */
-  constructor({ dayData, platformKey, isYT, isFB, getThresholds, getPomodoroLabel, petEngine }) {
+  constructor({ dayData, platformKey, isYT, isFB, getThresholds, getPomodoroLabel, getPomodoroActive, onStartPomodoroRequest, onStopPomodoro, petEngine, onFocusModeToggle }) {
     this.dayData = dayData;
     this.platformKey = platformKey;
     this.isYT = isYT;
     this.isFB = isFB;
     this.getThresholds = getThresholds;
     this.getPomodoroLabel = getPomodoroLabel || (() => null);
+    this.getPomodoroActive = getPomodoroActive || (() => false);
+    this.onStartPomodoroRequest = onStartPomodoroRequest || null;
+    this.onStopPomodoro = onStopPomodoro || null;
     this.petEngine = petEngine || null;
+    this.focusMode = "music";
+    this.onFocusModeToggle = onFocusModeToggle || null;
 
     this._isMinimized = false;
     this._isDragging = false;
@@ -33,6 +41,11 @@ export class HUDManager {
     this._initialTop = 0;
 
     this.hud = this._createHUD();
+  }
+
+  setFocusMode(mode) {
+    this.focusMode = mode;
+    this.update();
   }
 
   _createHUD() {
@@ -170,6 +183,7 @@ export class HUDManager {
       this.hud.style.boxShadow = "0 0 18px rgba(239,68,68,0.7)";
     }
 
+    const isPomActive = this.getPomodoroActive ? this.getPomodoroActive() : false;
     const pomLabel = this.getPomodoroLabel();
 
     // Huy hiệu đếm ngược phiên lướt nếu có session đang chạy
@@ -192,7 +206,7 @@ export class HUDManager {
       this.hud.innerHTML = `
         <span style="cursor:pointer; font-weight:bold; color:#A78BFA;" id="mindful-hud-toggle" title="Mở rộng HUD">📊 ${formatTimeShort(summary.activeTimeSeconds)}</span>
         ${sessionBadge}
-        ${pomLabel ? `<span style="color:#06B6D4; font-size:10px;">${pomLabel}</span>` : ""}
+        ${isPomActive && pomLabel ? `<span style="color:#06B6D4; font-size:10px; font-weight:700;">${pomLabel}</span>` : ""}
       `;
       this.hud.querySelector("#mindful-hud-toggle")?.addEventListener("click", () => {
         this._isMinimized = false;
@@ -224,11 +238,36 @@ export class HUDManager {
       }
     }
 
-    const breakBadge = isBreakSession
-      ? `<span style="background:rgba(6,182,212,0.2); color:#06B6D4; font-size:10px; padding:1px 5px; border-radius:4px; font-weight:700;">☕ BREAK</span>`
+    const devBtn = this.isDevMode
+      ? `<span style="cursor:pointer; margin-left:4px; font-size:12px; filter:drop-shadow(0 0 4px rgba(245,158,11,0.6));" id="mindful-hud-dev-btn" title="Quick Dev Toolbox">🛠️</span>`
       : "";
 
-    const devBtn = "";
+    let musicStats = "";
+    if (this.isYT) {
+      const musicCount = this.dayData.youtube.musicVideos?.totalWatched || 0;
+      if (musicCount > 0) {
+        musicStats = `<span style="background:rgba(139,92,246,0.2); color:#C4B5FD; font-size:10px; padding:1px 5px; border-radius:4px; font-weight:700;" title="Nhạc tập trung đã nghe">🎵 ${musicCount} bài</span>`;
+      }
+    }
+
+    let pomodoroSection = "";
+    let focusToggleBtn = "";
+    let stopPomBtn = "";
+
+    if (isPomActive && pomLabel) {
+      pomodoroSection = `<span style="background:${isBreakSession ? 'rgba(6,182,212,0.2)' : 'rgba(139,92,246,0.25)'}; color:${isBreakSession ? '#67E8F9' : '#C4B5FD'}; font-size:11px; padding:2px 7px; border-radius:6px; font-weight:800; border:1px solid ${isBreakSession ? 'rgba(6,182,212,0.45)' : 'rgba(139,92,246,0.45)'}; display:inline-flex; align-items:center; gap:4px;">${pomLabel}</span>`;
+      stopPomBtn = `<span id="mindful-hud-stop-pomodoro" style="cursor:pointer; background:rgba(239,68,68,0.2); color:#FCA5A5; border:1px solid rgba(239,68,68,0.5); font-size:10px; padding:2px 6px; border-radius:4px; font-weight:700; margin-left:3px;" title="Dừng phiên Pomodoro">⏹ Dừng</span>`;
+
+      // CHỈ KHI ĐANG CHẠY POMODORO THÌ MỚI HIỆN NÚT CHỌN ĐỔI MODE
+      if (this.isYT) {
+        focusToggleBtn = `
+          <span id="mindful-hud-focus-mode-btn" style="cursor:pointer; background:${this.focusMode === 'music' ? 'rgba(139,92,246,0.22)' : 'rgba(16,185,129,0.22)'}; color:${this.focusMode === 'music' ? '#C4B5FD' : '#6EE7B7'}; border:1px solid ${this.focusMode === 'music' ? 'rgba(139,92,246,0.5)' : 'rgba(16,185,129,0.5)'}; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:700; margin-left:3px;" title="Chuyển đổi Chế độ Làm việc với Âm nhạc / Học tập">${this.focusMode === 'music' ? '🎵 Mode Nhạc' : '📚 Mode Học'}</span>
+        `;
+      }
+    } else {
+      // Khi chưa bật Pomodoro: Nút Bắt đầu Pomodoro, KHÔNG HIỆN nút đổi mode
+      pomodoroSection = `<span id="mindful-hud-start-pomodoro" style="cursor:pointer; background:linear-gradient(135deg, rgba(139,92,246,0.3), rgba(99,102,241,0.3)); color:#C4B5FD; border:1px solid rgba(139,92,246,0.5); font-size:10.5px; padding:2px 7px; border-radius:6px; font-weight:700;" title="Bắt đầu phiên tập trung Pomodoro">🍅 Bắt đầu Pomodoro</span>`;
+    }
 
     this.hud.innerHTML = `
       <span id="mindful-hud-pet-slot" style="display:inline-flex;align-items:center;"></span>
@@ -236,8 +275,10 @@ export class HUDManager {
       <span>⏱ Active: <b style="color:#38BDF8">${formatTimeShort(summary.activeTimeSeconds)}</b></span>
       ${sessionBadge}
       ${extraStats}
-      ${pomLabel ? `<span style="color:#06B6D4; font-size:10px;">${pomLabel}</span>` : ""}
-      ${breakBadge}
+      ${musicStats}
+      ${pomodoroSection}
+      ${focusToggleBtn}
+      ${stopPomBtn}
       ${devBtn}
       <span style="cursor:pointer; margin-left:4px; opacity:0.6; font-size:14px; font-weight:bold;" id="mindful-hud-minimize" title="Thu nhỏ">−</span>
     `;
@@ -246,6 +287,24 @@ export class HUDManager {
       const slot = this.hud.querySelector("#mindful-hud-pet-slot");
       if (slot) this.petEngine.mount(slot);
     }
+
+    this.hud.querySelector("#mindful-hud-start-pomodoro")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.onStartPomodoroRequest?.();
+    });
+
+    this.hud.querySelector("#mindful-hud-stop-pomodoro")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.onStopPomodoro?.();
+    });
+
+    this.hud.querySelector("#mindful-hud-focus-mode-btn")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const newMode = this.focusMode === "music" ? "study" : "music";
+      this.focusMode = newMode;
+      this.onFocusModeToggle?.(newMode);
+      this.update(isBreakSession);
+    });
 
     this.hud.querySelector("#mindful-hud-dev-btn")?.addEventListener("click", (e) => {
       e.stopPropagation();

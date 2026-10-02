@@ -218,7 +218,9 @@ Bản tóm tắt ngày (Digest):
 - Tỷ lệ nội dung hữu ích: ${digest.usefulPct || 0}%
 - Tỷ lệ xao nhãng bốc đồng: ${digest.distractPct || 0}%
 - Tổng số video đã xem: ${digest.totalVideos || 0}
+- Thời gian nghe nhạc tập trung (Music Focus): ${Math.round((digest.musicVideos?.totalDurationSeconds || 0) / 60)} phút (${digest.musicVideos?.totalWatched || 0} bài)
 - Video bổ ích đã xem trọn vẹn (>=80%): ${JSON.stringify(digest.usefulVideos || [])}
+- Video xem trong Chế độ Học tập (Study Focus) và câu trả lời mục đích của người dùng: ${JSON.stringify(digest.studyVideoLogs || [])}
 
 Mục tiêu lớn (Master Goal): "${masterGoal || "Trở thành phiên bản tốt hơn"}"
 
@@ -228,9 +230,10 @@ Người dùng tự phản tư hôm nay:
 
 Yêu cầu phản hồi:
 - Lời nhận xét thấu cảm, động viên chân thành dựa trên số liệu thực tế.
+- Đánh giá trung thực xem các video người dùng xem trong Chế độ Học tập và lý do họ trả lời có thực sự phục vụ cho Mục tiêu lớn (Master Goal) hay không.
 - Nhắc lại 1-2 video bổ ích mà người dùng đã xem trọn vẹn trong ngày để họ ghi nhớ kiến thức.
 - Liên kết với Master Goal để củng cố động lực nội tại.
-- Ngắn gọn, súc tích (dưới 150 từ), tuyệt đối thân thiện.
+- Ngắn gọn, súc tích (dưới 180 từ), tuyệt đối thân thiện.
 
 Trả về JSON đúng cấu trúc:
 {

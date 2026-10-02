@@ -229,6 +229,8 @@ function buildContextDigest(dayData) {
   const fbLong = dayData.facebook?.longVideos || { totalWatched: 0, impulsiveCount: 0, usefulCount: 0, details: [] };
   const ytShorts = dayData.youtube?.shortVideos?.totalSwipes || 0;
   const fbReels = dayData.facebook?.reels?.totalSwipes || 0;
+  const musicVideos = dayData.youtube?.musicVideos || { totalWatched: 0, totalDurationSeconds: 0 };
+  const studyVideoLogs = Array.isArray(dayData.studyVideoLogs) ? dayData.studyVideoLogs.slice(0, 10) : [];
 
   const totalActiveSeconds = (ytSummary.activeTimeSeconds || 0) + (fbSummary.activeTimeSeconds || 0);
   const activeMinutes = Math.round(totalActiveSeconds / 60);
@@ -252,7 +254,9 @@ function buildContextDigest(dayData) {
     usefulPct,
     distractPct,
     totalVideos: totalLong + ytShorts + fbReels,
-    usefulVideos
+    usefulVideos,
+    musicVideos,
+    studyVideoLogs
   };
 }
 

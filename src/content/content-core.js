@@ -53,6 +53,7 @@ let hud = null;
 let friction = null;
 let petEngine = null;
 let isReady = false;
+let currentFocusMode = "music";
 const triggeredMilestones = { m1: false, m2: false, m3: false };
 
 // ─── Toast helper (ưu tiên hiển thị Pet Toast sinh động) ─────────────────────
@@ -138,8 +139,37 @@ function evaluateGrayscaleMode() {
   if (!isReady || !appConfig) return;
   injectGrayscaleStyle();
 
-  // (a) Đang trong phiên Pomodoro Focus
+  const htmlEl = document.documentElement;
+
+  // Kỷ luật tối cao: Năng lượng Pet cạn kiệt (< 15⚡) -> LUÔN CƯỠNG CHẾ ĐEN TRẮNG
+  const isPetExhausted = petEngine ? petEngine.isCriticalEnergy() : false;
+  if (isPetExhausted) {
+    if (!htmlEl.classList.contains("mindful-grayscale-active")) {
+      htmlEl.classList.add("mindful-grayscale-active");
+    }
+    return;
+  }
+
+  // Nếu đang trong giờ nghỉ giải lao Pomodoro (Break Session): Luôn giữ màu để mắt thư giãn
+  if (pomodoroManager?.isBreakSession) {
+    if (htmlEl.classList.contains("mindful-grayscale-active")) {
+      htmlEl.classList.remove("mindful-grayscale-active");
+    }
+    return;
+  }
+
+  // Nếu người dùng chọn Chế độ Học tập (Study Focus): Màn hình LUÔN GIỮ MÀU (Full Color)
+  // để người dùng đọc tài liệu, xem slide bài giảng, code, hình ảnh học tập
+  if (currentFocusMode === "study") {
+    if (htmlEl.classList.contains("mindful-grayscale-active")) {
+      htmlEl.classList.remove("mindful-grayscale-active");
+    }
+    return;
+  }
+
+  // (a) Đang trong Mode Làm việc với Âm nhạc (Music Focus) hoặc Pomodoro Focus
   const isPomodoroFocus = pomodoroManager?.isFocusSession || false;
+  const isMusicFocus = currentFocusMode === "music";
 
   // (b) Vượt Mốc cảnh báo 2 (theo nền tảng hiện tại)
   const threshData = getThresholds();
@@ -173,11 +203,7 @@ function evaluateGrayscaleMode() {
   const currentMins = now.getHours() * 60 + now.getMinutes();
   const isLateNight = currentMins >= (22 * 60 + 30) || currentMins < (5 * 60);
 
-  // (d) Kỷ luật đa tầng: Năng lượng Pet cạn kiệt (< 15⚡) -> Cưỡng chế Đen Trắng
-  const isPetExhausted = petEngine ? petEngine.isCriticalEnergy() : false;
-
-  const shouldGrayscale = isPomodoroFocus || isOverM2 || isLateNight || isPetExhausted;
-  const htmlEl = document.documentElement;
+  const shouldGrayscale = isMusicFocus || isPomodoroFocus || isOverM2 || isLateNight;
 
   if (shouldGrayscale) {
     if (!htmlEl.classList.contains("mindful-grayscale-active")) {
@@ -235,12 +261,13 @@ function onAction() {
     triggeredMilestones.m3 = false;
   }
 
-  // Cảnh báo nhẹ Mốc 1 (Pet Toast ở góc màn hình)
+  // Cảnh báo nhẹ Mốc 1 (Pet Center Toast + Phạt 5⚡)
   if (currentCount >= currentLimits.m1 && !triggeredMilestones.m1 && petEngine) {
     triggeredMilestones.m1 = true;
+    petEngine.penalize(5, "milestone_1");
     petEngine.showPetToast(
-      `Bạn đã xem <b>${currentCount} ${unitLabel}</b> (Chạm Mốc 1). Hãy giữ tỉnh táo nhé!`,
-      { title: "Cảnh báo Mốc 1" }
+      `Bạn đã xem <b>${currentCount} ${unitLabel}</b> (Chạm Mốc 1). Hãy giữ tỉnh táo nhé! <b style="color:#F87171;">(-5⚡)</b>`,
+      { title: "⚠️ Cảnh Báo Mốc 1 (M1)" }
     );
   }
 
@@ -249,8 +276,8 @@ function onAction() {
     triggeredMilestones.m2 = true;
     petEngine.penalize(10, "milestone_2");
     petEngine.showPetCenterModal({
-      title: "⚠️ Cảnh Báo Mốc 2!",
-      message: `Bạn đã lướt tới <b>${currentCount} ${unitLabel}</b>. Chế độ Đen Trắng đã kích hoạt để giảm kích thích dopamine. Bạn có muốn dừng lại để bảo vệ năng lượng Pet?`,
+      title: "⚠️ Cảnh Báo Mốc 2 (M2)!",
+      message: `Bạn đã lướt tới <b>${currentCount} ${unitLabel}</b> <b style="color:#F87171;">(-10⚡)</b>. Chế độ Đen Trắng đã kích hoạt để giảm kích thích dopamine. Bạn có muốn dừng lại để bảo vệ năng lượng Pet?`,
       actions: [
         {
           label: "🛑 Đóng Tab Ngay",
@@ -454,7 +481,33 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
     sendResponse({ ok: true });
     return true;
   }
+  if (req.type === "TRIGGER_POMODORO_SETUP") {
+    triggerPomodoroSetup();
+    sendResponse({ ok: true });
+    return true;
+  }
+  if (req.type === "STOP_POMODORO") {
+    pomodoroManager?.stop();
+    evaluateGrayscaleMode();
+    onUpdate();
+    sendResponse({ ok: true });
+    return true;
+  }
 });
+
+function triggerPomodoroSetup() {
+  if (!friction) return;
+  friction.showPomodoroSetupModal({
+    onStart: (setup) => {
+      currentFocusMode = setup.focusMode || "music";
+      chrome.storage.local.set({ focus_mode_type: currentFocusMode });
+      if (hud) hud.setFocusMode(currentFocusMode);
+      pomodoroManager?.startNewSession(setup);
+      evaluateGrayscaleMode();
+      onUpdate();
+    }
+  });
+}
 
 // ─── Lắng nghe thay đổi storage (từ popup) ───────────────────────────────────
 chrome.storage.onChanged.addListener((changes, namespace) => {
@@ -479,8 +532,20 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
   if (changes.pomodoro_state?.newValue) {
     if (pomodoroManager) {
       pomodoroManager.state = changes.pomodoro_state.newValue;
+      if (pomodoroManager.state.focusMode) {
+        currentFocusMode = pomodoroManager.state.focusMode;
+        if (hud) hud.setFocusMode(currentFocusMode);
+      }
+      evaluateGrayscaleMode();
       onUpdate();
     }
+  }
+
+  if (changes.focus_mode_type !== undefined) {
+    currentFocusMode = changes.focus_mode_type.newValue || "music";
+    if (hud) hud.setFocusMode(currentFocusMode);
+    evaluateGrayscaleMode();
+    onUpdate();
   }
 
   if (changes.dev_mode_enabled !== undefined) {
@@ -509,8 +574,9 @@ loadAppData(({ config, dayData: loaded, hudPosition, pomodoroState }) => {
   appConfig = config;
   dayData = loaded;
 
-  // Khởi tạo Pet Engine
+  // Khởi tạo Pet Engine & Cơ chế Hồi năng lượng Offline (Digital Detox)
   petEngine = new PetEngine();
+  petEngine.checkIdleRecovery();
 
   // Khởi tạo Friction Manager & liên kết Pet Engine
   friction = new FrictionManager({
@@ -525,7 +591,7 @@ loadAppData(({ config, dayData: loaded, hudPosition, pomodoroState }) => {
     onUpdate();
   };
 
-  // Khởi tạo HUD Manager
+  // Khởi tạo HUD Manager & Gắn bộ chuyển Mode (Âm nhạc ↔ Học tập)
   hud = new HUDManager({
     dayData,
     platformKey,
@@ -533,36 +599,74 @@ loadAppData(({ config, dayData: loaded, hudPosition, pomodoroState }) => {
     isFB,
     getThresholds,
     getPomodoroLabel: () => pomodoroManager?.getStatusLabel() || null,
-    petEngine
+    getPomodoroActive: () => pomodoroManager?.isEnabled || false,
+    onStartPomodoroRequest: () => {
+      triggerPomodoroSetup();
+    },
+    onStopPomodoro: () => {
+      pomodoroManager?.stop();
+      showToast("⏹ Đã dừng phiên Pomodoro.", 2500);
+      evaluateGrayscaleMode();
+      onUpdate();
+    },
+    petEngine,
+    onFocusModeToggle: (newMode) => {
+      currentFocusMode = newMode;
+      chrome.storage.local.set({ focus_mode_type: newMode });
+      if (pomodoroManager && pomodoroManager.isEnabled) {
+        pomodoroManager.state.focusMode = newMode;
+        chrome.storage.local.set({ pomodoro_state: pomodoroManager.state });
+      }
+      evaluateGrayscaleMode();
+      onUpdate();
+      showToast(
+        newMode === "music"
+          ? "🎵 Mode Nhạc: Màn hình Đen Trắng, video nhạc tính thống kê riêng"
+          : "📚 Mode Học: Màn hình màu, hỏi mục tiêu bài học sau 10s xem",
+        3500
+      );
+    }
   });
 
   if (hudPosition?.top && hudPosition?.left) {
     hud.applyPosition(hudPosition.top, hudPosition.left);
   }
 
-  // Khởi tạo trạng thái Dev Mode cho HUD
-  chrome.storage.local.get(["dev_mode_enabled"], (res) => {
+  // Khởi tạo trạng thái Focus Mode & Dev Mode từ storage
+  chrome.storage.local.get(["dev_mode_enabled", "focus_mode_type"], (res) => {
+    if (res.focus_mode_type) {
+      currentFocusMode = res.focus_mode_type;
+      if (hud) hud.setFocusMode(currentFocusMode);
+    }
     if (hud) {
       hud.setDevMode(!!res.dev_mode_enabled, createDevCallbacks());
       hud.update();
     }
+    evaluateGrayscaleMode();
   });
 
   // Khởi tạo Pomodoro Manager
   pomodoroManager = new PomodoroManager({
     config,
     state: pomodoroState,
+    petEngine,
     onUpdate: () => {
       onUpdate();
-      // Nếu vừa hoàn thành session tập trung
-      if (pomodoroManager?.isBreakSession) {
-        petEngine?.reward(15, "pomodoro_complete");
-      }
+    },
+    onAllCompleted: () => {
+      evaluateGrayscaleMode();
+      onUpdate();
     }
   });
-  pomodoroManager.start();
+  if (pomodoroState?.enabled) {
+    if (pomodoroState.focusMode) {
+      currentFocusMode = pomodoroState.focusMode;
+      if (hud) hud.setFocusMode(currentFocusMode);
+    }
+    pomodoroManager.start();
+  }
 
-  // Khởi tạo Tracker
+  // Khởi tạo Tracker tích hợp Chế độ Nhạc & Chế độ Học
   tracker = new Tracker({
     dayData,
     platformKey,
@@ -570,6 +674,31 @@ loadAppData(({ config, dayData: loaded, hudPosition, pomodoroState }) => {
     isFB,
     onUpdate,
     onAction,
+    getFocusMode: () => currentFocusMode,
+    onStudyCheckInNeeded: (videoId, videoTitle) => {
+      if (currentFocusMode !== "study") return;
+      friction.showStudyCheckInModal(
+        videoTitle,
+        (intent) => {
+          if (!dayData.studyVideoLogs) dayData.studyVideoLogs = [];
+          dayData.studyVideoLogs.push({
+            id: videoId,
+            title: videoTitle,
+            userIntent: intent,
+            timestamp: Date.now()
+          });
+          saveDayData(dayData, "youtube", true);
+          petEngine?.reward(5, "study_intent_declared");
+          showToast(`🎯 Mục tiêu: "${intent}". Đã thưởng +5⚡!`, 3500);
+          onUpdate();
+        },
+        () => {
+          petEngine?.penalize(10, "study_distraction");
+          showToast("⚠️ Video không phục vụ mục tiêu học tập. Đã trừ 10⚡!", 3500);
+          onUpdate();
+        }
+      );
+    },
     onImpulsive: (reason) => {
       petEngine?.penalize(reason === "reload_spam" ? 5 : 20, reason);
     },
@@ -593,6 +722,11 @@ loadAppData(({ config, dayData: loaded, hudPosition, pomodoroState }) => {
     friction?.checkSessionTimer(petEngine);
     onUpdate();
   }, 5000);
+
+  // Ghi nhận mốc hoạt động mỗi 60s để tính Digital Detox Idle Recovery
+  setInterval(() => {
+    chrome.storage.local.set({ lastActiveTimestamp: Date.now() });
+  }, 60000);
 
   onRouteChanged();
 });
@@ -624,6 +758,7 @@ window.addEventListener("popstate", onRouteChanged);
 
 // ─── Cleanup khi đóng / chuyển tab ───────────────────────────────────────────
 const doFlush = () => {
+  chrome.storage.local.set({ lastActiveTimestamp: Date.now() });
   tracker?.flush(appConfig?.targetKeywords || []);
 };
 

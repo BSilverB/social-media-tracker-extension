@@ -1,6 +1,7 @@
 /**
  * Mindful Social Media Tracker - Pomodoro Module
- * Quản lý chu kỳ Focus (25m) / Break (5m), lưu trạng thái bền vững
+ * Quản lý chu kỳ Focus / Break đa hiệp (Multi-cycle), đếm ngược từng giây,
+ * vinh danh năng lượng Pet và chuyển hiệp tự động.
  */
 
 import { savePomodoroState } from "../../utils/storage.js";
@@ -8,23 +9,40 @@ import { savePomodoroState } from "../../utils/storage.js";
 export class PomodoroManager {
   /**
    * @param {object} opts
-   * @param {object} opts.config       - Cấu hình pomodoro { enabled, focusMinutes, breakMinutes }
-   * @param {object} opts.state        - Trạng thái ban đầu
-   * @param {Function} opts.onUpdate   - Callback khi trạng thái đổi
+   * @param {object} opts.config
+   * @param {object} opts.state
+   * @param {Function} opts.onUpdate
+   * @param {object} opts.petEngine
+   * @param {Function} opts.onAllCompleted
    */
-  constructor({ config, state, onUpdate }) {
+  constructor({ config, state, onUpdate, petEngine, onAllCompleted }) {
     this.config = config.pomodoro || { enabled: false, focusMinutes: 25, breakMinutes: 5 };
     this.onUpdate = onUpdate || (() => {});
+    this.petEngine = petEngine || null;
+    this.onAllCompleted = onAllCompleted || (() => {});
 
     // Phục hồi trạng thái từ storage
-    this.state = state || {
-      enabled: this.config.enabled || false,
+    this.state = Object.assign({
+      enabled: false,
+      totalCycles: 2,
+      currentCycle: 1,
       sessionType: "focus",         // "focus" | "break"
       sessionStartTime: Date.now(),
-      durationMinutes: this.config.focusMinutes || 25
-    };
+      durationMinutes: 25,
+      focusMinutes: 25,
+      breakMinutes: 5,
+      focusMode: "music"
+    }, state || {});
 
-    this._timer = null;
+    this._intervalTimer = null;
+  }
+
+  setPetEngine(engine) {
+    this.petEngine = engine;
+  }
+
+  get isEnabled() {
+    return !!this.state.enabled;
   }
 
   // Kiểm tra đang trong Break Session không
@@ -39,7 +57,7 @@ export class PomodoroManager {
 
   // Tổng ms còn lại trong session hiện tại
   get remainingMs() {
-    const elapsed = Date.now() - this.state.sessionStartTime;
+    const elapsed = Date.now() - (this.state.sessionStartTime || Date.now());
     const totalMs = (this.state.durationMinutes || 25) * 60 * 1000;
     return Math.max(0, totalMs - elapsed);
   }
@@ -47,97 +65,153 @@ export class PomodoroManager {
   // Khởi động/tiếp tục vòng đếm
   start() {
     if (!this.state.enabled) return;
-    this._scheduleNextCheck();
-  }
+    if (this._intervalTimer) clearInterval(this._intervalTimer);
 
-  _scheduleNextCheck() {
-    if (this._timer) clearTimeout(this._timer);
-
-    const remaining = this.remainingMs;
-    if (remaining <= 0) {
-      this._switchSession();
-      return;
-    }
-
-    // Kiểm tra lại mỗi 10 giây để không miss transition
-    this._timer = setTimeout(() => {
+    this._intervalTimer = setInterval(() => {
       if (this.remainingMs <= 0) {
-        this._switchSession();
+        this._handleTransition();
       } else {
         this.onUpdate();
-        this._scheduleNextCheck();
       }
-    }, Math.min(remaining, 10000));
+    }, 1000);
   }
 
-  _switchSession() {
+  // Kích hoạt một chu kỳ Pomodoro mới với thiết lập từ người dùng
+  startNewSession({ totalCycles = 2, focusMinutes = 25, breakMinutes = 5, focusMode = "music" } = {}) {
+    this.state = {
+      enabled: true,
+      totalCycles: Math.max(1, parseInt(totalCycles) || 2),
+      currentCycle: 1,
+      sessionType: "focus",
+      sessionStartTime: Date.now(),
+      durationMinutes: Math.max(1, parseInt(focusMinutes) || 25),
+      focusMinutes: Math.max(1, parseInt(focusMinutes) || 25),
+      breakMinutes: Math.max(1, parseInt(breakMinutes) || 5),
+      focusMode: focusMode || "music"
+    };
+
+    savePomodoroState(this.state);
+    this.start();
+    this.onUpdate();
+
+    if (this.petEngine) {
+      this.petEngine.showPetToast(
+        `🎯 Bắt đầu Chu kỳ Pomodoro (${this.state.totalCycles} hiệp). Hãy tập trung tối đa trong ${this.state.focusMinutes} phút!`,
+        { title: "🍅 Pomodoro Khởi Động" }
+      );
+    }
+  }
+
+  _handleTransition() {
     const wasFocus = this.state.sessionType === "focus";
 
-    this.state.sessionType = wasFocus ? "break" : "focus";
-    this.state.sessionStartTime = Date.now();
-    this.state.durationMinutes = wasFocus
-      ? (this.config.breakMinutes || 5)
-      : (this.config.focusMinutes || 25);
+    if (wasFocus) {
+      // 1. Vừa hoàn thành hiệp Focus -> Thưởng Pet +15⚡
+      if (this.petEngine) {
+        this.petEngine.reward(15, "pomodoro_complete");
+      }
 
+      if (this.state.currentCycle < this.state.totalCycles) {
+        // Còn hiệp tiếp theo -> Chuyển sang Break
+        this.state.sessionType = "break";
+        this.state.sessionStartTime = Date.now();
+        this.state.durationMinutes = this.state.breakMinutes;
+        savePomodoroState(this.state);
+        this.onUpdate();
+
+        if (this.petEngine) {
+          this.petEngine.showPetCenterModal({
+            title: "🎉 Tuyệt Vời! Hoàn Thành Hiệp Focus!",
+            message: `Bạn đã tập trung trọn vẹn <b>Hiệp ${this.state.currentCycle}/${this.state.totalCycles}</b>! Linh vật đã được nạp <b style="color:#FEF08A;">+15⚡</b>.<br/><br/>Bây giờ hãy đứng dậy vươn vai, uống nước và nghỉ ngơi <b>${this.state.breakMinutes} phút</b> nhé! ☕`,
+            actions: [
+              {
+                label: "☕ Bắt đầu Nghỉ ngơi",
+                primary: true,
+                onClick: (e, modal) => modal.remove()
+              }
+            ]
+          });
+        }
+      } else {
+        // Đã hoàn thành toàn bộ tất cả các hiệp!
+        if (this.petEngine) {
+          this.petEngine.reward(10, "pomodoro_all_cycles_complete");
+        }
+
+        const totalDone = this.state.totalCycles;
+        this.stop();
+        this.state.enabled = false;
+        savePomodoroState(this.state);
+        this.onAllCompleted();
+        this.onUpdate();
+
+        if (this.petEngine) {
+          this.petEngine.showPetCenterModal({
+            title: "🏆 Xuất Sắc! Hoàn Thành Chu Kỳ Pomodoro!",
+            message: `Chúc mừng bạn đã hoàn thành trọn vẹn cả <b>${totalDone}/${totalDone} hiệp Pomodoro</b> hôm nay! Bạn thật kiên định và kỷ luật.<br/><br/>Linh vật đã được thưởng thêm <b style="color:#FEF08A;">+10⚡</b> vinh danh! 🌟`,
+            actions: [
+              {
+                label: "🌟 Tuyệt vời!",
+                primary: true,
+                onClick: (e, modal) => modal.remove()
+              }
+            ]
+          });
+        }
+      }
+    } else {
+      // 2. Vừa hết giờ nghỉ giải lao (Break) -> Bắt đầu hiệp Focus tiếp theo
+      this.state.currentCycle++;
+      this.state.sessionType = "focus";
+      this.state.sessionStartTime = Date.now();
+      this.state.durationMinutes = this.state.focusMinutes;
+      savePomodoroState(this.state);
+      this.onUpdate();
+
+      if (this.petEngine) {
+        this.petEngine.showPetCenterModal({
+          title: "🎯 Giờ Nghỉ Đã Hết - Bắt Đầu Hiệp Mới!",
+          message: `Đã đến lúc bước vào <b>Hiệp ${this.state.currentCycle}/${this.state.totalCycles} Focus</b> (${this.state.focusMinutes} phút). Hãy giữ vững sự tập trung cao độ nhé! 🚀`,
+          actions: [
+            {
+              label: "🚀 Tập trung ngay!",
+              primary: true,
+              onClick: (e, modal) => modal.remove()
+            }
+          ]
+        });
+      }
+    }
+  }
+
+  // Dừng sớm theo yêu cầu người dùng
+  stop() {
+    if (this._intervalTimer) {
+      clearInterval(this._intervalTimer);
+      this._intervalTimer = null;
+    }
+    this.state.enabled = false;
     savePomodoroState(this.state);
     this.onUpdate();
-    this._showSessionNotification(wasFocus);
-    this._scheduleNextCheck();
   }
 
-  _showSessionNotification(wasFocus) {
-    const msg = wasFocus
-      ? `☕ Nghỉ ngơi ${this.config.breakMinutes || 5} phút! Bạn xứng đáng được giải lao.`
-      : `🎯 Bắt đầu Focus ${this.config.focusMinutes || 25} phút! Hãy tập trung nào.`;
-
-    let toast = document.getElementById("mindful-toast-notify");
-    if (!toast) {
-      toast = document.createElement("div");
-      toast.id = "mindful-toast-notify";
-      toast.style.cssText = `
-        position:fixed!important; top:24px!important; left:50%!important;
-        transform:translateX(-50%)!important; z-index:2147483647!important;
-        background:rgba(15,23,32,0.96)!important; color:#F8FAFC!important;
-        padding:12px 22px!important; border-radius:30px!important;
-        font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif!important;
-        font-size:13px!important; font-weight:600!important;
-        box-shadow:0 10px 35px rgba(0,0,0,0.6)!important;
-        backdrop-filter:blur(12px)!important; border:1.5px solid #8B5CF6!important;
-        transition:all 0.3s ease!important; opacity:0; pointer-events:none!important;
-      `;
-      (document.body || document.documentElement).appendChild(toast);
-    }
-    toast.innerHTML = msg;
-    toast.style.opacity = "1";
-    setTimeout(() => { if (toast) toast.style.opacity = "0"; }, 6000);
-  }
-
-  // Bật/tắt Pomodoro từ config thay đổi
+  // Cập nhật cấu hình từ popup
   updateConfig(newPomodoroConfig) {
     this.config = newPomodoroConfig;
-    if (!newPomodoroConfig.enabled) {
-      this.state.enabled = false;
-      if (this._timer) clearTimeout(this._timer);
-    } else {
-      this.state.enabled = true;
-      this.start();
+    if (!newPomodoroConfig.enabled && this.state.enabled) {
+      this.stop();
     }
-    savePomodoroState(this.state);
-    this.onUpdate();
   }
 
-  // Format thời gian còn lại cho HUD
+  // Format nhãn đếm ngược chi tiết cho HUD
   getStatusLabel() {
     if (!this.state.enabled) return null;
-    const totalSec = Math.ceil(this.remainingMs / 1000);
+    const totalSec = Math.max(0, Math.ceil(this.remainingMs / 1000));
     const m = Math.floor(totalSec / 60);
-    const s = totalSec % 60;
-    const icon = this.state.sessionType === "focus" ? "🎯" : "☕";
-    return `${icon} ${m}m${s}s`;
-  }
-
-  stop() {
-    if (this._timer) clearTimeout(this._timer);
-    this._timer = null;
+    const s = String(totalSec % 60).padStart(2, "0");
+    const icon = this.state.sessionType === "focus" ? "🍅" : "☕";
+    const stage = this.state.sessionType === "focus" ? "Focus" : "Nghỉ";
+    return `${icon} Hiệp ${this.state.currentCycle}/${this.state.totalCycles} ${stage} ${m}:${s}`;
   }
 }
+
