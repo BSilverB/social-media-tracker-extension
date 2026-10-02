@@ -141,7 +141,7 @@ function evaluateGrayscaleMode() {
 
   const htmlEl = document.documentElement;
 
-  // Kỷ luật tối cao: Năng lượng Pet cạn kiệt (< 15⚡) -> LUÔN CƯỠNG CHẾ ĐEN TRẮNG
+  // 1. Kỷ luật tối cao: Năng lượng Pet cạn kiệt (< 15⚡) -> LUÔN CƯỠNG CHẾ ĐEN TRẮNG
   const isPetExhausted = petEngine ? petEngine.isCriticalEnergy() : false;
   if (isPetExhausted) {
     if (!htmlEl.classList.contains("mindful-grayscale-active")) {
@@ -150,7 +150,7 @@ function evaluateGrayscaleMode() {
     return;
   }
 
-  // Nếu đang trong giờ nghỉ giải lao Pomodoro (Break Session): Luôn giữ màu để mắt thư giãn
+  // 2. Nếu đang trong giờ nghỉ giải lao Pomodoro (Break Session): Luôn giữ màu để mắt thư giãn
   if (pomodoroManager?.isBreakSession) {
     if (htmlEl.classList.contains("mindful-grayscale-active")) {
       htmlEl.classList.remove("mindful-grayscale-active");
@@ -158,20 +158,27 @@ function evaluateGrayscaleMode() {
     return;
   }
 
-  // Nếu người dùng chọn Chế độ Học tập (Study Focus): Màn hình LUÔN GIỮ MÀU (Full Color)
-  // để người dùng đọc tài liệu, xem slide bài giảng, code, hình ảnh học tập
-  if (currentFocusMode === "study") {
-    if (htmlEl.classList.contains("mindful-grayscale-active")) {
-      htmlEl.classList.remove("mindful-grayscale-active");
+  // 3. Nếu đang trong chu kỳ Pomodoro Focus:
+  // - Mode "music": Màn hình trắng đen để tập trung nghe nhạc
+  // - Mode "study": Giữ nguyên màu sắc để đọc tài liệu, slide, code
+  const isPomodoroFocus = pomodoroManager ? pomodoroManager.isFocusSession : false;
+  if (isPomodoroFocus) {
+    const focusMode = pomodoroManager?.state?.focusMode || currentFocusMode;
+    if (focusMode === "music") {
+      if (!htmlEl.classList.contains("mindful-grayscale-active")) {
+        htmlEl.classList.add("mindful-grayscale-active");
+      }
+      return;
+    } else if (focusMode === "study") {
+      if (htmlEl.classList.contains("mindful-grayscale-active")) {
+        htmlEl.classList.remove("mindful-grayscale-active");
+      }
+      return;
     }
-    return;
   }
 
-  // (a) Đang trong Mode Làm việc với Âm nhạc (Music Focus) hoặc Pomodoro Focus
-  const isPomodoroFocus = pomodoroManager?.isFocusSession || false;
-  const isMusicFocus = currentFocusMode === "music";
-
-  // (b) Vượt Mốc cảnh báo 2 (theo nền tảng hiện tại)
+  // 4. Khi ở trạng thái bình thường (KHÔNG chạy Pomodoro Focus):
+  // (a) Vượt Mốc cảnh báo 2 (M2) theo ngưỡng người dùng cài đặt
   const threshData = getThresholds();
   let currentCount = 0;
   let m2Limit = 30;
@@ -198,20 +205,22 @@ function evaluateGrayscaleMode() {
   }
   const isOverM2 = currentCount >= m2Limit;
 
-  // (c) Khung giờ đi ngủ (Bedtime Mode) do người dùng chủ động cài đặt
+  // (b) Khung giờ đi ngủ (Bedtime Mode)
   const now = new Date();
   const currentMins = now.getHours() * 60 + now.getMinutes();
 
   let isBedtime = false;
-  const bedtimeCfg = appConfig?.bedtime || { enabled: true, start: "22:30", end: "05:00" };
-  if (bedtimeCfg.enabled !== false) {
-    const [startH, startM] = (bedtimeCfg.start || "22:30").split(":").map(Number);
-    const [endH, endM] = (bedtimeCfg.end || "05:00").split(":").map(Number);
+  const bedtimeCfg = appConfig?.bedtime;
+  const isBedtimeEnabled = bedtimeCfg ? bedtimeCfg.enabled !== false : true;
+
+  if (isBedtimeEnabled) {
+    const [startH, startM] = (bedtimeCfg?.start || "22:30").split(":").map(Number);
+    const [endH, endM] = (bedtimeCfg?.end || "05:00").split(":").map(Number);
     const startTotal = (isNaN(startH) ? 22 : startH) * 60 + (isNaN(startM) ? 30 : startM);
     const endTotal = (isNaN(endH) ? 5 : endH) * 60 + (isNaN(endM) ? 0 : endM);
 
     if (startTotal > endTotal) {
-      // Qua nửa đêm (ví dụ 22:30 tối đến 05:00 sáng)
+      // Qua nửa đêm (ví dụ: từ 22:30 tối nay đến 05:00 sáng mai)
       isBedtime = currentMins >= startTotal || currentMins < endTotal;
     } else {
       // Trong cùng 1 ngày
@@ -219,7 +228,7 @@ function evaluateGrayscaleMode() {
     }
   }
 
-  const shouldGrayscale = isMusicFocus || isPomodoroFocus || isOverM2 || isBedtime;
+  const shouldGrayscale = isOverM2 || isBedtime;
 
   if (shouldGrayscale) {
     if (!htmlEl.classList.contains("mindful-grayscale-active")) {
