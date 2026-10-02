@@ -316,23 +316,6 @@
       background: rgba(239, 68, 68, 0.2);
     }
 
-    /* Dev Test Mode */
-    .dev-btn {
-      padding: 6px 4px;
-      font-size: 10px;
-      font-weight: 600;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-    }
-    .dev-btn:hover {
-      filter: brightness(1.2);
-      transform: translateY(-1px);
-    }
   </style>
 </head>
 <body>
@@ -346,9 +329,6 @@
       </div>
     </div>
     <div style="display:flex; align-items:center; gap:6px;">
-      <label style="display:flex; align-items:center; gap:4px; font-size:10px; color:#F59E0B; cursor:pointer; background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.3); padding:2px 6px; border-radius:10px;" title="Bật/Tắt Chế độ Test dành cho Developer">
-        <input type="checkbox" id="toggle-dev-mode" style="accent-color:#F59E0B; cursor:pointer;"> 🛠️ Dev
-      </label>
       <button id="header-btn-dashboard" type="button" style="background:rgba(6,182,212,0.15); border:1px solid rgba(6,182,212,0.4); color:#67E8F9; border-radius:12px; font-size:10px; font-weight:700; padding:2px 8px; cursor:pointer;" title="Mở trang Báo Cáo Phân Tích Xu Hướng">📊 Báo Cáo</button>
       <div id="today-badge" class="date-badge">2026-09-13</div>
     </div>
@@ -388,7 +368,6 @@
     <button class="tab-btn" id="tab-fb" data-target="panel-fb">👥 Facebook</button>
     <button class="tab-btn" id="tab-all" data-target="panel-all">📊 Tổng quan</button>
     <button class="tab-btn" id="tab-cfg" data-target="panel-cfg">⚙️ Cài đặt</button>
-    <button class="tab-btn" id="tab-dev" data-target="panel-dev" style="display: none; color:#F59E0B;">🛠️ Dev</button>
   </div>
 
   <!-- PANEL 1: YOUTUBE -->
@@ -901,89 +880,6 @@ tài chính" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,0.3);
     </div>
   </div>
 
-  <!-- PANEL 5: CHẾ ĐỘ TEST CHO DEV -->
-  <div id="panel-dev" class="tab-panel" style="display: none;">
-    <!-- Card 1: Năng Lượng Pet Simulation -->
-    <div class="card" style="border: 1px solid rgba(245,158,11,0.4); background: rgba(245,158,11,0.06);">
-      <div class="card-header">
-        <span class="card-title" style="color: #FBBF24;">⚡ Năng lượng Pet (Simulation)</span>
-        <span id="dev-energy-val" style="font-size:11px; font-weight:700; color:#FBBF24;">100%</span>
-      </div>
-      <div style="font-size:10px; color:var(--text-secondary); margin-bottom:8px;">
-        Thử nghiệm các mốc năng lượng: &lt;15⚡ (Ép Grayscale), &lt;10⚡ (Chặn gia hạn), 0⚡ (Kiệt sức, reset streak).
-      </div>
-      <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:6px; margin-bottom:10px;">
-        <button id="dev-btn-energy-0" type="button" class="dev-btn" style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); color:#FCA5A5;">0⚡ Kiệt sức</button>
-        <button id="dev-btn-energy-10" type="button" class="dev-btn" style="background:rgba(245,158,11,0.2); border:1px solid rgba(245,158,11,0.5); color:#FCD34D;">10⚡ Nguy cấp</button>
-        <button id="dev-btn-energy-50" type="button" class="dev-btn" style="background:rgba(59,130,246,0.2); border:1px solid rgba(59,130,246,0.5); color:#93C5FD;">50⚡ Trung bình</button>
-        <button id="dev-btn-energy-100" type="button" class="dev-btn" style="background:rgba(16,185,129,0.2); border:1px solid rgba(16,185,129,0.5); color:#6EE7B7;">100⚡ Tối đa</button>
-      </div>
-      <div style="display:flex; align-items:center; gap:8px;">
-        <span style="font-size:10px; color:var(--text-muted);">Tùy chỉnh:</span>
-        <input type="range" id="dev-slider-energy" min="0" max="100" value="100" style="flex:1; accent-color:#F59E0B; cursor:pointer;">
-      </div>
-    </div>
-
-    <!-- Card 2: Phiên Lướt & Mục Tiêu -->
-    <div class="card" style="border: 1px solid rgba(139,92,246,0.4); background: rgba(139,92,246,0.06);">
-      <div class="card-header">
-        <span class="card-title" style="color: #C4B5FD;">🎯 Phiên Lướt & Mục Tiêu</span>
-      </div>
-      <div style="font-size:10px; color:var(--text-secondary); margin-bottom:8px;">
-        Kích hoạt thông báo hết giờ phiên lướt hoặc kiểm tra giao diện hỏi mục tiêu có ảnh người thương.
-      </div>
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
-        <button id="dev-btn-expire-session" type="button" class="dev-btn" style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); color:#FCA5A5;">⏱️ Hết giờ phiên ngay</button>
-        <button id="dev-btn-open-intent" type="button" class="dev-btn" style="background:rgba(139,92,246,0.2); border:1px solid rgba(139,92,246,0.5); color:#C4B5FD;">🎯 Hiện khung Mục tiêu</button>
-      </div>
-    </div>
-
-    <!-- Card 3: Mốc Cảnh Báo & Ma Sát (Milestones) -->
-    <div class="card" style="border: 1px solid rgba(6,182,212,0.4); background: rgba(6,182,212,0.06);">
-      <div class="card-header">
-        <span class="card-title" style="color: #67E8F9;">🔔 Mốc Cảnh Báo & Ma Sát</span>
-      </div>
-      <div style="font-size:10px; color:var(--text-secondary); margin-bottom:8px;">
-        Kích hoạt ngay các cấp độ cảnh báo để kiểm tra Pet Toast và Pet Center Modal:
-      </div>
-      <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:6px;">
-        <button id="dev-btn-trigger-m1" type="button" class="dev-btn" style="background:rgba(245,158,11,0.2); border:1px solid rgba(245,158,11,0.5); color:#FCD34D;">🔔 Mốc 1 (Toast Pet)</button>
-        <button id="dev-btn-trigger-m2" type="button" class="dev-btn" style="background:rgba(249,115,22,0.2); border:1px solid rgba(249,115,22,0.5); color:#FDBA74;">⚠️ Mốc 2 (Modal 10s)</button>
-        <button id="dev-btn-trigger-m3" type="button" class="dev-btn" style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); color:#FCA5A5;">🚫 Mốc 3 (Modal Chặn)</button>
-        <button id="dev-btn-trigger-f5" type="button" class="dev-btn" style="background:rgba(168,85,247,0.2); border:1px solid rgba(168,85,247,0.5); color:#D8B4FE;">⚡ F5 Spam (Toast)</button>
-      </div>
-    </div>
-
-    <!-- Card 4: Chuỗi Focus Streak & Trang Phục -->
-    <div class="card" style="border: 1px solid rgba(16,185,129,0.4); background: rgba(16,185,129,0.06);">
-      <div class="card-header">
-        <span class="card-title" style="color: #6EE7B7;">🔥 Chuỗi Focus Streak</span>
-      </div>
-      <div style="font-size:10px; color:var(--text-secondary); margin-bottom:8px;">
-        Thay đổi chuỗi ngày liên tiếp để kiểm tra mở khóa trang phục Pet (Mũ cử nhân, Vương miện):
-      </div>
-      <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:6px;">
-        <button id="dev-btn-streak-0" type="button" class="dev-btn" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:#94A3B8;">0 Ngày</button>
-        <button id="dev-btn-streak-3" type="button" class="dev-btn" style="background:rgba(16,185,129,0.2); border:1px solid rgba(16,185,129,0.5); color:#6EE7B7;">🎓 3 Ngày</button>
-        <button id="dev-btn-streak-7" type="button" class="dev-btn" style="background:rgba(245,158,11,0.2); border:1px solid rgba(245,158,11,0.5); color:#FCD34D;">👑 7 Ngày</button>
-      </div>
-    </div>
-
-    <!-- Card 5: Hệ Thống & Reset -->
-    <div class="card" style="border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.02);">
-      <div class="card-header">
-        <span class="card-title">⚙️ Hệ Thống & Reset Dữ Liệu Test</span>
-      </div>
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-bottom:8px;">
-        <button id="dev-btn-reflection-22h" type="button" class="dev-btn" style="background:rgba(139,92,246,0.25); border:1px solid rgba(139,92,246,0.5); color:#C4B5FD;">🌙 Kích hoạt Phản tư 22h</button>
-        <button id="dev-btn-toggle-pomodoro" type="button" class="dev-btn" style="background:rgba(6,182,212,0.25); border:1px solid rgba(6,182,212,0.5); color:#67E8F9;">🍅 Đổi Pomodoro Break</button>
-      </div>
-      <button id="dev-btn-reset-all" type="button" style="width:100%; padding:8px 0; background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.6); color:#FCA5A5; font-size:11px; font-weight:700; border-radius:6px; cursor:pointer;">
-        🔄 Khôi phục dữ liệu gốc (100⚡, 0 ngày streak, xóa log test)
-      </button>
-      <div id="dev-toast-msg" style="display:none; text-align:center; font-size:10px; color:#10B981; margin-top:6px; font-weight:bold;"></div>
-    </div>
-  </div>
 
   <!-- Footer -->
   <div class="footer">

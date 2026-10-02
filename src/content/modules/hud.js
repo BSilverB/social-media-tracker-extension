@@ -228,9 +228,7 @@ export class HUDManager {
       ? `<span style="background:rgba(6,182,212,0.2); color:#06B6D4; font-size:10px; padding:1px 5px; border-radius:4px; font-weight:700;">☕ BREAK</span>`
       : "";
 
-    const devBtn = this.isDevMode
-      ? `<span style="cursor:pointer; margin-left:4px; font-size:12px; filter:drop-shadow(0 0 4px rgba(245,158,11,0.6));" id="mindful-hud-dev-btn" title="Quick Dev Toolbox">🛠️</span>`
-      : "";
+    const devBtn = "";
 
     this.hud.innerHTML = `
       <span id="mindful-hud-pet-slot" style="display:inline-flex;align-items:center;"></span>
@@ -264,14 +262,9 @@ export class HUDManager {
     }
   }
 
-  // ─── Quick Dev Toolbox ────────────────────────────────────────────────────
-  setDevMode(enabled, callbacks) {
-    this.isDevMode = !!enabled;
-    this.devCallbacks = callbacks || null;
-    if (!this.isDevMode && this._toolboxEl) {
-      this._toolboxEl.remove();
-      this._toolboxEl = null;
-    }
+  // ─── Quick Dev Toolbox (Disabled in production) ───────────────────────────
+  setDevMode() {
+    this.isDevMode = false;
   }
 
   _toggleQuickDevToolbox() {
