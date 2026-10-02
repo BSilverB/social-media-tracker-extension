@@ -682,14 +682,6 @@ export class PetEngine {
       isZero: this.isZeroEnergy(),
       reason
     });
-
-    if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
-      chrome.runtime.sendMessage({
-        type: "UPDATE_PET_STATE",
-        deltaEnergy: -deduct,
-        newMood: this.mood
-      }).catch(() => {});
-    }
   }
 
   /**
@@ -722,14 +714,6 @@ export class PetEngine {
       isZero: this.isZeroEnergy(),
       reason
     });
-
-    if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
-      chrome.runtime.sendMessage({
-        type: "UPDATE_PET_STATE",
-        deltaEnergy: bonus,
-        newMood: this.mood
-      }).catch(() => {});
-    }
   }
 
   cheerUp() {

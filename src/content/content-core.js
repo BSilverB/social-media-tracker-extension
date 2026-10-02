@@ -53,6 +53,7 @@ let hud = null;
 let friction = null;
 let petEngine = null;
 let isReady = false;
+const triggeredMilestones = { m1: false, m2: false, m3: false };
 
 // ─── Toast helper (ưu tiên hiển thị Pet Toast sinh động) ─────────────────────
 function showToast(msg, durationMs = 4000) {
@@ -227,8 +228,16 @@ function onAction() {
     }
   }
 
+  // Reset cờ cảnh báo nếu count quay về 0 (xóa dữ liệu ngày)
+  if (currentCount === 0) {
+    triggeredMilestones.m1 = false;
+    triggeredMilestones.m2 = false;
+    triggeredMilestones.m3 = false;
+  }
+
   // Cảnh báo nhẹ Mốc 1 (Pet Toast ở góc màn hình)
-  if (currentCount === currentLimits.m1 && petEngine) {
+  if (currentCount >= currentLimits.m1 && !triggeredMilestones.m1 && petEngine) {
+    triggeredMilestones.m1 = true;
     petEngine.showPetToast(
       `Bạn đã xem <b>${currentCount} ${unitLabel}</b> (Chạm Mốc 1). Hãy giữ tỉnh táo nhé!`,
       { title: "Cảnh báo Mốc 1" }
@@ -236,7 +245,8 @@ function onAction() {
   }
 
   // Cảnh báo lớn Mốc 2 (Pet Center Modal + Phạt 10⚡)
-  if (currentCount === currentLimits.m2 && petEngine) {
+  if (currentCount >= currentLimits.m2 && !triggeredMilestones.m2 && petEngine) {
+    triggeredMilestones.m2 = true;
     petEngine.penalize(10, "milestone_2");
     petEngine.showPetCenterModal({
       title: "⚠️ Cảnh Báo Mốc 2!",
@@ -262,7 +272,8 @@ function onAction() {
   // Mốc 3: Hard Friction Overlay với Box Breathing 12s + Phạt 20⚡
   friction.checkAndTrigger(currentCount, currentLimits.m3, unitLabel);
 
-  if (currentCount >= currentLimits.m3 && petEngine) {
+  if (currentCount >= currentLimits.m3 && !triggeredMilestones.m3 && petEngine) {
+    triggeredMilestones.m3 = true;
     petEngine.penalize(20, "milestone_3");
   }
 }
