@@ -548,6 +548,162 @@ function setupSettings() {
   });
 }
 
+// ─── Điều khiển & Đồng hồ đếm ngược Pomodoro Đa Hiệp ──────────────────────────
+let popupPomTimer = null;
+
+function setupPomodoroControls() {
+  const setupBox = document.getElementById("popup-pom-setup-box");
+  const runningBox = document.getElementById("popup-pom-running-box");
+  const statusBadge = document.getElementById("popup-pom-status-badge");
+  const runningTimerEl = document.getElementById("popup-pom-running-timer");
+  const runningModeEl = document.getElementById("popup-pom-running-mode");
+  const btnStart = document.getElementById("btn-popup-start-pom");
+  const btnStop = document.getElementById("btn-popup-stop-pom");
+  const cyclesSelect = document.getElementById("cfg-pomodoro-cycles");
+  const focusInput = document.getElementById("cfg-pomodoro-focus");
+  const breakInput = document.getElementById("cfg-pomodoro-break");
+  const modeMusicLabel = document.getElementById("popup-mode-music-label");
+  const modeStudyLabel = document.getElementById("popup-mode-study-label");
+  const modeRadios = document.querySelectorAll('input[name="popup-pom-mode"]');
+
+  // Đổi style khi chọn mode
+  modeRadios.forEach(r => {
+    r.addEventListener("change", () => {
+      if (r.value === "music") {
+        if (modeMusicLabel) {
+          modeMusicLabel.style.background = "rgba(139,92,246,0.18)";
+          modeMusicLabel.style.borderColor = "#8B5CF6";
+        }
+        if (modeStudyLabel) {
+          modeStudyLabel.style.background = "rgba(255,255,255,0.05)";
+          modeStudyLabel.style.borderColor = "rgba(255,255,255,0.12)";
+        }
+      } else {
+        if (modeStudyLabel) {
+          modeStudyLabel.style.background = "rgba(16,185,129,0.18)";
+          modeStudyLabel.style.borderColor = "#10B981";
+        }
+        if (modeMusicLabel) {
+          modeMusicLabel.style.background = "rgba(255,255,255,0.05)";
+          modeMusicLabel.style.borderColor = "rgba(255,255,255,0.12)";
+        }
+      }
+    });
+  });
+
+  function renderPomodoroState(state) {
+    if (state && state.enabled) {
+      if (setupBox) setupBox.style.display = "none";
+      if (runningBox) runningBox.style.display = "block";
+      if (statusBadge) statusBadge.style.display = "inline-block";
+
+      const updateCountdown = () => {
+        const elapsed = Date.now() - (state.sessionStartTime || Date.now());
+        const totalMs = (state.durationMinutes || 25) * 60 * 1000;
+        const remMs = Math.max(0, totalMs - elapsed);
+        const remSec = Math.ceil(remMs / 1000);
+        const m = Math.floor(remSec / 60);
+        const s = String(remSec % 60).padStart(2, "0");
+        const icon = state.sessionType === "focus" ? "🍅" : "☕";
+        const stage = state.sessionType === "focus" ? "Focus" : "Nghỉ";
+
+        if (runningTimerEl) {
+          runningTimerEl.textContent = `${icon} Hiệp ${state.currentCycle}/${state.totalCycles} ${stage} ${m}:${s}`;
+          runningTimerEl.style.color = state.sessionType === "focus" ? "#38BDF8" : "#34D399";
+        }
+        if (runningModeEl) {
+          runningModeEl.textContent = `Mode: ${state.focusMode === "music" ? "🎵 Làm việc với Âm nhạc" : "📚 Chế độ Học tập"}`;
+        }
+      };
+
+      updateCountdown();
+      if (popupPomTimer) clearInterval(popupPomTimer);
+      popupPomTimer = setInterval(updateCountdown, 1000);
+    } else {
+      if (popupPomTimer) {
+        clearInterval(popupPomTimer);
+        popupPomTimer = null;
+      }
+      if (runningBox) runningBox.style.display = "none";
+      if (setupBox) setupBox.style.display = "block";
+      if (statusBadge) statusBadge.style.display = "none";
+    }
+  }
+
+  // Load trạng thái ban đầu
+  chrome.storage.local.get(["pomodoro_state", "focus_mode_type"], (res) => {
+    if (res.pomodoro_state) {
+      renderPomodoroState(res.pomodoro_state);
+    }
+    if (res.focus_mode_type) {
+      const targetRadio = document.querySelector(`input[name="popup-pom-mode"][value="${res.focus_mode_type}"]`);
+      if (targetRadio) {
+        targetRadio.checked = true;
+        targetRadio.dispatchEvent(new Event("change"));
+      }
+    }
+  });
+
+  // Lắng nghe thay đổi storage từ tab web
+  chrome.storage.onChanged.addListener((changes, ns) => {
+    if (ns === "local" && changes.pomodoro_state) {
+      renderPomodoroState(changes.pomodoro_state.newValue);
+    }
+  });
+
+  // Nút Bắt đầu Pomodoro
+  if (btnStart) {
+    btnStart.addEventListener("click", () => {
+      const totalCycles = parseInt(cyclesSelect?.value) || 2;
+      const focusMinutes = parseInt(focusInput?.value) || 25;
+      const breakMinutes = parseInt(breakInput?.value) || 5;
+      const selectedMode = document.querySelector('input[name="popup-pom-mode"]:checked')?.value || "music";
+
+      const newPomState = {
+        enabled: true,
+        totalCycles,
+        currentCycle: 1,
+        sessionType: "focus",
+        sessionStartTime: Date.now(),
+        durationMinutes: focusMinutes,
+        focusMinutes,
+        breakMinutes,
+        focusMode: selectedMode
+      };
+
+      chrome.storage.local.set({
+        pomodoro_state: newPomState,
+        focus_mode_type: selectedMode
+      }, () => {
+        renderPomodoroState(newPomState);
+        chrome.tabs.query({ active: true }, (tabs) => {
+          tabs.forEach(t => {
+            if (t.id) chrome.tabs.sendMessage(t.id, { type: "START_POMODORO", setup: newPomState }).catch(() => {});
+          });
+        });
+      });
+    });
+  }
+
+  // Nút Dừng Pomodoro
+  if (btnStop) {
+    btnStop.addEventListener("click", () => {
+      chrome.storage.local.get(["pomodoro_state"], (res) => {
+        const s = res.pomodoro_state || {};
+        s.enabled = false;
+        chrome.storage.local.set({ pomodoro_state: s }, () => {
+          renderPomodoroState(s);
+          chrome.tabs.query({ active: true }, (tabs) => {
+            tabs.forEach(t => {
+              if (t.id) chrome.tabs.sendMessage(t.id, { type: "STOP_POMODORO" }).catch(() => {});
+            });
+          });
+        });
+      });
+    });
+  }
+}
+
 // ─── Thiết lập Linh vật Pet Đa Chế Độ (Giai đoạn 4) ───────────────────────────
 function setupPetControls() {
   const radioModes = document.querySelectorAll('input[name="pet-mode"]');
@@ -1292,6 +1448,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupTabs();
   setupResetButton();
   setupSettings();
+  setupPomodoroControls();
   setupPetControls();
   setupWardrobeControls();
   setupReflectionButton();

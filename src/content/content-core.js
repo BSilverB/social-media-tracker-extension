@@ -150,6 +150,14 @@ function evaluateGrayscaleMode() {
     return;
   }
 
+  // Nếu đang trong giờ nghỉ giải lao Pomodoro (Break Session): Luôn giữ màu để mắt thư giãn
+  if (pomodoroManager?.isBreakSession) {
+    if (htmlEl.classList.contains("mindful-grayscale-active")) {
+      htmlEl.classList.remove("mindful-grayscale-active");
+    }
+    return;
+  }
+
   // Nếu người dùng chọn Chế độ Học tập (Study Focus): Màn hình LUÔN GIỮ MÀU (Full Color)
   // để người dùng đọc tài liệu, xem slide bài giảng, code, hình ảnh học tập
   if (currentFocusMode === "study") {
@@ -473,7 +481,33 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
     sendResponse({ ok: true });
     return true;
   }
+  if (req.type === "TRIGGER_POMODORO_SETUP") {
+    triggerPomodoroSetup();
+    sendResponse({ ok: true });
+    return true;
+  }
+  if (req.type === "STOP_POMODORO") {
+    pomodoroManager?.stop();
+    evaluateGrayscaleMode();
+    onUpdate();
+    sendResponse({ ok: true });
+    return true;
+  }
 });
+
+function triggerPomodoroSetup() {
+  if (!friction) return;
+  friction.showPomodoroSetupModal({
+    onStart: (setup) => {
+      currentFocusMode = setup.focusMode || "music";
+      chrome.storage.local.set({ focus_mode_type: currentFocusMode });
+      if (hud) hud.setFocusMode(currentFocusMode);
+      pomodoroManager?.startNewSession(setup);
+      evaluateGrayscaleMode();
+      onUpdate();
+    }
+  });
+}
 
 // ─── Lắng nghe thay đổi storage (từ popup) ───────────────────────────────────
 chrome.storage.onChanged.addListener((changes, namespace) => {
@@ -498,6 +532,11 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
   if (changes.pomodoro_state?.newValue) {
     if (pomodoroManager) {
       pomodoroManager.state = changes.pomodoro_state.newValue;
+      if (pomodoroManager.state.focusMode) {
+        currentFocusMode = pomodoroManager.state.focusMode;
+        if (hud) hud.setFocusMode(currentFocusMode);
+      }
+      evaluateGrayscaleMode();
       onUpdate();
     }
   }
@@ -560,10 +599,24 @@ loadAppData(({ config, dayData: loaded, hudPosition, pomodoroState }) => {
     isFB,
     getThresholds,
     getPomodoroLabel: () => pomodoroManager?.getStatusLabel() || null,
+    getPomodoroActive: () => pomodoroManager?.isEnabled || false,
+    onStartPomodoroRequest: () => {
+      triggerPomodoroSetup();
+    },
+    onStopPomodoro: () => {
+      pomodoroManager?.stop();
+      showToast("⏹ Đã dừng phiên Pomodoro.", 2500);
+      evaluateGrayscaleMode();
+      onUpdate();
+    },
     petEngine,
     onFocusModeToggle: (newMode) => {
       currentFocusMode = newMode;
       chrome.storage.local.set({ focus_mode_type: newMode });
+      if (pomodoroManager && pomodoroManager.isEnabled) {
+        pomodoroManager.state.focusMode = newMode;
+        chrome.storage.local.set({ pomodoro_state: pomodoroManager.state });
+      }
       evaluateGrayscaleMode();
       onUpdate();
       showToast(
@@ -596,14 +649,22 @@ loadAppData(({ config, dayData: loaded, hudPosition, pomodoroState }) => {
   pomodoroManager = new PomodoroManager({
     config,
     state: pomodoroState,
+    petEngine,
     onUpdate: () => {
       onUpdate();
-      if (pomodoroManager?.isBreakSession) {
-        petEngine?.reward(15, "pomodoro_complete");
-      }
+    },
+    onAllCompleted: () => {
+      evaluateGrayscaleMode();
+      onUpdate();
     }
   });
-  pomodoroManager.start();
+  if (pomodoroState?.enabled) {
+    if (pomodoroState.focusMode) {
+      currentFocusMode = pomodoroState.focusMode;
+      if (hud) hud.setFocusMode(currentFocusMode);
+    }
+    pomodoroManager.start();
+  }
 
   // Khởi tạo Tracker tích hợp Chế độ Nhạc & Chế độ Học
   tracker = new Tracker({

@@ -954,28 +954,72 @@
       </div>
     </div>
 
-    <!-- Pomodoro Settings Card -->
-    <div class="card">
+    <!-- Pomodoro Settings & Live Controller Card -->
+    <div class="card" id="card-pomodoro-wrapper" style="border: 1px solid rgba(139, 92, 246, 0.4); background: rgba(139, 92, 246, 0.06);">
       <div class="card-header">
-        <span class="card-title">🍅 Chế độ Pomodoro</span>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-          <span style="font-size:10px;color:var(--text-secondary);">Bật</span>
-          <input type="checkbox" id="cfg-pomodoro-enabled" style="width:14px;height:14px;cursor:pointer;accent-color:#8B5CF6;">
-        </label>
+        <span class="card-title" style="color:#C4B5FD;">🍅 Chế độ Pomodoro Đa Hiệp</span>
+        <span id="popup-pom-status-badge" class="badge-info" style="display:none; background:rgba(139,92,246,0.3); color:#C4B5FD;">Đang chạy</span>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <div>
-          <label style="font-size:10px;color:#A78BFA;font-weight:bold;">Focus (phút)</label>
-          <input type="number" id="cfg-pomodoro-focus" value="25" min="5" max="120"
-            style="width:100%;box-sizing:border-box;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;padding:4px 6px;font-size:12px;margin-top:2px;">
+
+      <!-- Live Running Box (hiện khi đang chạy) -->
+      <div id="popup-pom-running-box" style="display:none; background:rgba(0,0,0,0.35); border-radius:10px; padding:12px; margin-bottom:10px; border:1px solid rgba(139,92,246,0.3); text-align:center;">
+        <div style="font-size:10px; color:#94A3B8; margin-bottom:4px; font-weight:700;">TIẾN TRÌNH HIỆN TẠI</div>
+        <div id="popup-pom-running-timer" style="font-size:18px; font-weight:800; color:#38BDF8; font-family:monospace; margin-bottom:4px;">
+          🍅 Hiệp 1/2 Focus 24:50
         </div>
-        <div>
-          <label style="font-size:10px;color:#06B6D4;font-weight:bold;">Break (phút)</label>
-          <input type="number" id="cfg-pomodoro-break" value="5" min="1" max="30"
-            style="width:100%;box-sizing:border-box;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:6px;padding:4px 6px;font-size:12px;margin-top:2px;">
+        <div id="popup-pom-running-mode" style="font-size:10px; color:#CBD5E1; margin-bottom:10px;">
+          Mode: 🎵 Làm việc với Âm nhạc
         </div>
+        <button id="btn-popup-stop-pom" type="button" style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.6); color:#FCA5A5; font-size:11px; font-weight:700; padding:6px 14px; border-radius:6px; cursor:pointer;">
+          ⏹ Dừng Pomodoro
+        </button>
       </div>
-      <div style="font-size:10px;color:var(--text-muted);margin-top:6px;">Khi đang Break Session: Overlay và cảnh báo bị vô hiệu hóa.</div>
+
+      <!-- Setup Box (hiện khi chưa chạy) -->
+      <div id="popup-pom-setup-box">
+        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:6px; margin-bottom:8px;">
+          <div>
+            <label style="font-size:9.5px; color:#CBD5E1; font-weight:bold;">Số hiệp</label>
+            <select id="cfg-pomodoro-cycles" style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:11px; margin-top:2px;">
+              <option value="1">1 hiệp</option>
+              <option value="2" selected>2 hiệp</option>
+              <option value="3">3 hiệp</option>
+              <option value="4">4 hiệp</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:9.5px; color:#A78BFA; font-weight:bold;">Focus (phút)</label>
+            <input type="number" id="cfg-pomodoro-focus" value="25" min="5" max="120"
+              style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:11px; margin-top:2px;">
+          </div>
+          <div>
+            <label style="font-size:9.5px; color:#06B6D4; font-weight:bold;">Break (phút)</label>
+            <input type="number" id="cfg-pomodoro-break" value="5" min="1" max="30"
+              style="width:100%; box-sizing:border-box; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; padding:4px 6px; font-size:11px; margin-top:2px;">
+          </div>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <label style="font-size:9.5px; color:#CBD5E1; font-weight:bold; display:block; margin-bottom:4px;">Chế độ khi Focus:</label>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+            <label id="popup-mode-music-label" style="display:flex; align-items:center; gap:5px; padding:6px 8px; background:rgba(139,92,246,0.18); border:1.5px solid #8B5CF6; border-radius:6px; cursor:pointer;">
+              <input type="radio" name="popup-pom-mode" value="music" checked style="accent-color:#8B5CF6;">
+              <span style="font-size:10px; font-weight:700; color:#C4B5FD;">🎵 Mode Nhạc</span>
+            </label>
+            <label id="popup-mode-study-label" style="display:flex; align-items:center; gap:5px; padding:6px 8px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:6px; cursor:pointer;">
+              <input type="radio" name="popup-pom-mode" value="study" style="accent-color:#10B981;">
+              <span style="font-size:10px; font-weight:700; color:#6EE7B7;">📚 Mode Học</span>
+            </label>
+          </div>
+        </div>
+
+        <button id="btn-popup-start-pom" type="button" style="width:100%; background:linear-gradient(135deg, #8B5CF6, #6366F1); border:none; color:#fff; font-weight:700; padding:8px 0; border-radius:7px; cursor:pointer; font-size:11.5px; box-shadow:0 3px 12px rgba(139,92,246,0.35);">
+          🚀 Bắt Đầu Pomodoro Ngay
+        </button>
+      </div>
+
+      <!-- Hidden legacy checkbox for backwards compatibility -->
+      <input type="checkbox" id="cfg-pomodoro-enabled" style="display:none;">
     </div>
 
     <!-- Keyword Target List Card -->

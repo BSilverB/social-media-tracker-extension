@@ -405,6 +405,188 @@ export class FrictionManager {
     };
   }
 
+  // ─── Modal Thiết Lập Chu Kỳ Pomodoro (Cycles, Times & Mode) ───────────────
+  showPomodoroSetupModal({ onStart, onCancel } = {}) {
+    let modal = document.getElementById("mindful-pomodoro-setup-modal");
+    if (modal) modal.remove();
+
+    modal = document.createElement("div");
+    modal.id = "mindful-pomodoro-setup-modal";
+    modal.style.cssText = `
+      position: fixed !important;
+      top: 0 !important; left: 0 !important;
+      width: 100vw !important; height: 100vh !important;
+      z-index: 2147483647 !important;
+      background: rgba(8, 12, 20, 0.82) !important;
+      backdrop-filter: blur(12px) !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      padding: 16px !important;
+      box-sizing: border-box !important;
+    `;
+
+    const petAvatar = this.petEngine ? `<div style="display:flex; justify-content:center; margin-bottom:10px;">${this.petEngine.getPetAvatarHtml(56)}</div>` : `<div style="font-size:42px; margin-bottom:8px;">🍅</div>`;
+
+    let selectedCycles = 2;
+    let selectedFocus = 25;
+    let selectedBreak = 5;
+    let selectedMode = "music";
+
+    modal.innerHTML = `
+      <div style="background:#131B2E; border:1.5px solid rgba(139,92,246,0.55); border-radius:22px;
+        padding:26px 24px; max-width:420px; width:100%; text-align:center;
+        box-shadow:0 25px 60px rgba(0,0,0,0.8), 0 0 35px rgba(139,92,246,0.25); color:#fff; position:relative;
+        animation:mindfulCardPop 0.3s cubic-bezier(0.16,1,0.3,1);">
+
+        <button id="btn-close-pom-setup" style="position:absolute; top:14px; right:16px; background:none; border:none; color:#64748B; font-size:18px; cursor:pointer;" title="Đóng">✕</button>
+
+        ${petAvatar}
+        <div style="font-size:17px; font-weight:800; color:#F8FAFC; margin-bottom:4px;">
+          🍅 Thiết Lập Chu Kỳ Pomodoro
+        </div>
+        <div style="font-size:12px; color:#94A3B8; margin-bottom:16px; line-height:1.4;">
+          Chọn số hiệp và phương thức tập trung phù hợp nhất với bạn
+        </div>
+
+        <!-- 1. Chọn số hiệp Pomodoro -->
+        <div style="text-align:left; margin-bottom:12px;">
+          <div style="font-size:11px; font-weight:700; color:#CBD5E1; margin-bottom:6px;">1. Số hiệp Pomodoro:</div>
+          <div id="pom-cycles-group" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:6px;">
+            <button type="button" class="pom-pill pom-cycle-btn" data-val="1" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#CBD5E1; padding:7px 0; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">1 Hiệp</button>
+            <button type="button" class="pom-pill pom-cycle-btn active" data-val="2" style="background:rgba(139,92,246,0.3); border:1.5px solid #8B5CF6; color:#C4B5FD; padding:7px 0; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">2 Hiệp</button>
+            <button type="button" class="pom-pill pom-cycle-btn" data-val="3" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#CBD5E1; padding:7px 0; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">3 Hiệp</button>
+            <button type="button" class="pom-pill pom-cycle-btn" data-val="4" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#CBD5E1; padding:7px 0; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">4 Hiệp</button>
+          </div>
+        </div>
+
+        <!-- 2. Thời lượng Focus & Break -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; text-align:left; margin-bottom:14px;">
+          <div>
+            <div style="font-size:11px; font-weight:700; color:#A78BFA; margin-bottom:5px;">Focus (Tập trung):</div>
+            <select id="pom-focus-select" style="width:100%; background:rgba(0,0,0,0.4); border:1px solid rgba(139,92,246,0.4); color:#fff; border-radius:8px; padding:7px 8px; font-size:12px; outline:none; cursor:pointer;">
+              <option value="15">15 phút</option>
+              <option value="25" selected>25 phút (Chuẩn)</option>
+              <option value="45">45 phút</option>
+              <option value="60">60 phút</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:11px; font-weight:700; color:#06B6D4; margin-bottom:5px;">Break (Nghỉ ngơi):</div>
+            <select id="pom-break-select" style="width:100%; background:rgba(0,0,0,0.4); border:1px solid rgba(6,182,212,0.4); color:#fff; border-radius:8px; padding:7px 8px; font-size:12px; outline:none; cursor:pointer;">
+              <option value="3">3 phút</option>
+              <option value="5" selected>5 phút (Chuẩn)</option>
+              <option value="10">10 phút</option>
+              <option value="15">15 phút</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 3. Chọn Chế Độ Focus -->
+        <div style="text-align:left; margin-bottom:18px;">
+          <div style="font-size:11px; font-weight:700; color:#CBD5E1; margin-bottom:6px;">2. Chế độ làm việc:</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <label id="pom-mode-music-card" style="display:flex; flex-direction:column; gap:3px; padding:10px; background:rgba(139,92,246,0.18); border:1.5px solid #8B5CF6; border-radius:10px; cursor:pointer; transition:all 0.2s;">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <input type="radio" name="pom-focus-mode" value="music" checked style="accent-color:#8B5CF6;">
+                <span style="font-size:12px; font-weight:700; color:#C4B5FD;">🎵 Mode Nhạc</span>
+              </div>
+              <span style="font-size:10px; color:#94A3B8; line-height:1.3; margin-top:2px;">Màn hình Đen Trắng, video nhạc tính riêng không tính xao nhãng.</span>
+            </label>
+
+            <label id="pom-mode-study-card" style="display:flex; flex-direction:column; gap:3px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:10px; cursor:pointer; transition:all 0.2s;">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <input type="radio" name="pom-focus-mode" value="study" style="accent-color:#10B981;">
+                <span style="font-size:12px; font-weight:700; color:#6EE7B7;">📚 Mode Học</span>
+              </div>
+              <span style="font-size:10px; color:#94A3B8; line-height:1.3; margin-top:2px;">Màn hình giữ màu, sau 10s hỏi mục tiêu bài học xem có ích không.</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Nút Bắt đầu & Hủy -->
+        <div style="display:flex; gap:8px;">
+          <button id="btn-pom-start" style="flex:2; background:linear-gradient(135deg, #8B5CF6, #6366F1); border:none; color:#fff; font-weight:700; padding:11px 0; border-radius:10px; cursor:pointer; font-size:13px; box-shadow:0 4px 15px rgba(139,92,246,0.4);">
+            🚀 Bắt Đầu Pomodoro
+          </button>
+          <button id="btn-pom-cancel" style="flex:1; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); color:#94A3B8; font-weight:600; padding:11px 0; border-radius:10px; cursor:pointer; font-size:12px;">
+            Hủy
+          </button>
+        </div>
+      </div>
+    `;
+
+    (document.body || document.documentElement).appendChild(modal);
+
+    // Event chọn số hiệp
+    const cycleBtns = modal.querySelectorAll(".pom-cycle-btn");
+    cycleBtns.forEach(btn => {
+      btn.onclick = () => {
+        cycleBtns.forEach(b => {
+          b.style.background = "rgba(255,255,255,0.06)";
+          b.style.borderColor = "rgba(255,255,255,0.12)";
+          b.style.color = "#CBD5E1";
+        });
+        btn.style.background = "rgba(139,92,246,0.3)";
+        btn.style.borderColor = "#8B5CF6";
+        btn.style.color = "#C4B5FD";
+        selectedCycles = parseInt(btn.getAttribute("data-val")) || 2;
+      };
+    });
+
+    // Event chọn mode
+    const modeRadios = modal.querySelectorAll("input[name='pom-focus-mode']");
+    const musicCard = modal.querySelector("#pom-mode-music-card");
+    const studyCard = modal.querySelector("#pom-mode-study-card");
+
+    modeRadios.forEach(radio => {
+      radio.onchange = () => {
+        selectedMode = radio.value;
+        if (selectedMode === "music") {
+          musicCard.style.background = "rgba(139,92,246,0.18)";
+          musicCard.style.borderColor = "#8B5CF6";
+          studyCard.style.background = "rgba(255,255,255,0.05)";
+          studyCard.style.borderColor = "rgba(255,255,255,0.12)";
+        } else {
+          studyCard.style.background = "rgba(16,185,129,0.18)";
+          studyCard.style.borderColor = "#10B981";
+          musicCard.style.background = "rgba(255,255,255,0.05)";
+          musicCard.style.borderColor = "rgba(255,255,255,0.12)";
+        }
+      };
+    });
+
+    const closeBtn = modal.querySelector("#btn-close-pom-setup");
+    const cancelBtn = modal.querySelector("#btn-pom-cancel");
+    const startBtn = modal.querySelector("#btn-pom-start");
+
+    const closeModal = () => {
+      modal.remove();
+      if (onCancel) onCancel();
+    };
+
+    closeBtn.onclick = closeModal;
+    cancelBtn.onclick = closeModal;
+
+    startBtn.onclick = () => {
+      const focusSelect = modal.querySelector("#pom-focus-select");
+      const breakSelect = modal.querySelector("#pom-break-select");
+      selectedFocus = parseInt(focusSelect?.value) || 25;
+      selectedBreak = parseInt(breakSelect?.value) || 5;
+
+      modal.remove();
+      if (onStart) {
+        onStart({
+          totalCycles: selectedCycles,
+          focusMinutes: selectedFocus,
+          breakMinutes: selectedBreak,
+          focusMode: selectedMode
+        });
+      }
+    };
+  }
+
   // ─── Hard Friction Overlay với Bài tập Thở Box Breathing (12s) ───────────
 
   _injectBreathingStyles() {
