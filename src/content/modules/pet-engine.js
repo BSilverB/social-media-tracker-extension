@@ -18,6 +18,16 @@ export class PetEngine {
       aiSprites: { happy: "", neutral: "", sad: "" }
     };
 
+    // Hệ thống Hạt giống tri thức & Tiến hóa & Lời thoại cá nhân hóa
+    this.knowledgeSeeds = 0;
+    this.customQuotes = [];
+    this.isWilted = false;
+    this.evolutionStage = "seedling"; // "seedling" (1-3d) | "growing" (4-20d) | "flowering" (21d+)
+    this.isSleeping = false;
+    this.isDizzy = false;
+    this._idleTimer = null;
+    this._dizzyTimer = null;
+
     // Hệ thống phụ kiện mở rộng
     this.accessories = {
       unlockedItems: [], // ["sunglasses", "laurel"]
@@ -32,7 +42,41 @@ export class PetEngine {
     this.containerEl = null;
 
     this._injectStyles();
+    this._setupIdleTracking();
     this._initFromStorage();
+  }
+
+  _computeEvolutionStage() {
+    if (this.streakDays >= 21) return "flowering";
+    if (this.streakDays >= 4) return "growing";
+    return "seedling";
+  }
+
+  _setupIdleTracking() {
+    if (typeof window === "undefined") return;
+    const resetIdle = () => {
+      if (this.isSleeping) {
+        this.setSleeping(false);
+      }
+      if (this._idleTimer) clearTimeout(this._idleTimer);
+      this._idleTimer = setTimeout(() => {
+        this.setSleeping(true);
+      }, 120000); // 2 phút không tương tác -> ngủ gật
+    };
+
+    window.addEventListener("mousemove", resetIdle, { passive: true });
+    window.addEventListener("keydown", resetIdle, { passive: true });
+    window.addEventListener("scroll", resetIdle, { passive: true });
+    window.addEventListener("click", resetIdle, { passive: true });
+    this._idleTimer = setTimeout(() => {
+      this.setSleeping(true);
+    }, 120000);
+  }
+
+  setSleeping(sleeping) {
+    if (this.isSleeping === sleeping) return;
+    this.isSleeping = sleeping;
+    this.render();
   }
 
   // ─── Khởi Tạo & Đồng Bộ Storage ─────────────────────────────────────────────
@@ -45,6 +89,10 @@ export class PetEngine {
         this.currentStreak = state.currentStreak ?? state.streakDays ?? 0;
         this.streakDays = this.currentStreak;
         this.mode = state.mode || "default";
+        this.knowledgeSeeds = state.knowledgeSeeds ?? 0;
+        this.customQuotes = Array.isArray(state.customQuotes) ? state.customQuotes : [];
+        this.isWilted = Boolean(state.isWilted);
+        this.evolutionStage = state.evolutionStage || this._computeEvolutionStage();
         this._updateMoodFromEnergy();
 
         if (state.puppetPhotos) {
@@ -76,6 +124,10 @@ export class PetEngine {
           this.currentStreak = newState.currentStreak ?? newState.streakDays ?? this.currentStreak;
           this.streakDays = this.currentStreak;
           this.mode = newState.mode || this.mode;
+          if (newState.knowledgeSeeds !== undefined) this.knowledgeSeeds = newState.knowledgeSeeds;
+          if (newState.customQuotes !== undefined && Array.isArray(newState.customQuotes)) this.customQuotes = newState.customQuotes;
+          if (newState.isWilted !== undefined) this.isWilted = Boolean(newState.isWilted);
+          this.evolutionStage = newState.evolutionStage || this._computeEvolutionStage();
           this._updateMoodFromEnergy();
 
           if (newState.puppetPhotos) {
@@ -194,6 +246,34 @@ export class PetEngine {
         100% { transform: translateY(-24px); opacity: 0; }
       }
 
+      @keyframes mindfulPetDizzy {
+        0%, 100% { transform: rotate(0deg) scale(0.96); }
+        25% { transform: rotate(-10deg) scale(0.94); }
+        50% { transform: rotate(6deg) scale(0.98); }
+        75% { transform: rotate(-6deg) scale(0.94); }
+      }
+      @keyframes mindfulPetSleeping {
+        0%, 100% { transform: translateY(1px) scale(0.97); }
+        50% { transform: translateY(-1px) scale(1.02); }
+      }
+      @keyframes mindfulZzzFloat {
+        0% { transform: translate(0, 0) scale(0.5); opacity: 0; }
+        40% { opacity: 0.9; }
+        100% { transform: translate(12px, -18px) scale(1.1); opacity: 0; }
+      }
+      @keyframes mindfulAuraGrowing {
+        0%, 100% { box-shadow: 0 0 6px rgba(16, 185, 129, 0.4), inset 0 0 4px rgba(16, 185, 129, 0.2); }
+        50% { box-shadow: 0 0 14px rgba(16, 185, 129, 0.75), inset 0 0 8px rgba(16, 185, 129, 0.4); }
+      }
+      @keyframes mindfulAuraFlowering {
+        0%, 100% { box-shadow: 0 0 10px rgba(245, 158, 11, 0.5), 0 0 20px rgba(251, 191, 36, 0.3); border-color: #F59E0B; }
+        50% { box-shadow: 0 0 20px rgba(245, 158, 11, 0.9), 0 0 35px rgba(251, 191, 36, 0.6); border-color: #FBBF24; }
+      }
+      @keyframes mindfulDroopLeaf {
+        0%, 100% { transform: rotate(0deg); }
+        50% { transform: rotate(3deg) translateY(1px); }
+      }
+
       .mindful-pet-anim-happy {
         animation: mindfulPetBounce 1.2s ease-in-out infinite !important;
       }
@@ -202,6 +282,20 @@ export class PetEngine {
       }
       .mindful-pet-anim-sad {
         animation: mindfulPetShiver 0.6s linear infinite !important;
+      }
+      .mindful-pet-anim-dizzy {
+        animation: mindfulPetDizzy 0.4s ease-in-out infinite !important;
+      }
+      .mindful-pet-anim-sleeping {
+        animation: mindfulPetSleeping 2.6s ease-in-out infinite !important;
+      }
+      .mindful-aura-growing {
+        border-radius: 50% !important;
+        animation: mindfulAuraGrowing 2s ease-in-out infinite !important;
+      }
+      .mindful-aura-flowering {
+        border-radius: 50% !important;
+        animation: mindfulAuraFlowering 1.8s ease-in-out infinite !important;
       }
     `;
     (document.head || document.documentElement).appendChild(style);
@@ -308,26 +402,64 @@ export class PetEngine {
     const isNeutral = this.mood === "neutral";
     const isSad = this.mood === "sad";
 
-    const animClass = isHappy ? "mindful-pet-anim-happy" : isNeutral ? "mindful-pet-anim-neutral" : "mindful-pet-anim-sad";
+    let animClass = isHappy ? "mindful-pet-anim-happy" : isNeutral ? "mindful-pet-anim-neutral" : "mindful-pet-anim-sad";
+    if (this.isDizzy) animClass = "mindful-pet-anim-dizzy";
+    else if (this.isSleeping) animClass = "mindful-pet-anim-sleeping";
+
     const potColor = isHappy ? "#8B5CF6" : isSad ? "#475569" : "#06B6D4";
-    const leafColor = isHappy ? "#10B981" : isSad ? "#94A3B8" : "#34D399";
+    let leafColor = this.isWilted ? "#EAB308" : (isHappy ? "#10B981" : isSad ? "#94A3B8" : "#34D399");
     const eyeColor = isSad ? "#64748B" : "#0F172A";
 
-    // Nở hoa khi Happy
-    const flower = isHappy ? `
-      <g transform="translate(18, 5)">
-        <circle cx="0" cy="0" r="4.5" fill="#F43F5E" />
-        <circle cx="-3" cy="-3" r="3" fill="#FDA4AF" />
-        <circle cx="3" cy="-3" r="3" fill="#FDA4AF" />
-        <circle cx="-3" cy="3" r="3" fill="#FDA4AF" />
-        <circle cx="3" cy="3" r="3" fill="#FDA4AF" />
-        <circle cx="0" cy="0" r="2.2" fill="#FBBF24" />
-      </g>
-    ` : "";
+    const stage = this.evolutionStage || this._computeEvolutionStage();
 
-    // Mắt biểu cảm
+    // 1. Hoa & Hào quang (Chỉ nở khi Happy hoặc đạt mốc Flowering 21+ ngày)
+    let flower = "";
+    let auraFilter = "";
+    if (stage === "flowering") {
+      auraFilter = "filter: drop-shadow(0 0 5px rgba(245,158,11,0.85));";
+      flower = `
+        <g transform="translate(18, 4)">
+          <circle cx="0" cy="0" r="5" fill="#F59E0B" />
+          <circle cx="-3.5" cy="-3.5" r="3.2" fill="#FBBF24" />
+          <circle cx="3.5" cy="-3.5" r="3.2" fill="#FBBF24" />
+          <circle cx="-3.5" cy="3.5" r="3.2" fill="#FBBF24" />
+          <circle cx="3.5" cy="3.5" r="3.2" fill="#FBBF24" />
+          <circle cx="0" cy="0" r="2.2" fill="#EF4444" />
+          <!-- Tia lấp lánh hoàng kim -->
+          <circle cx="-7" cy="-2" r="1.2" fill="#FEF08A" />
+          <circle cx="7" cy="-2" r="1.2" fill="#FEF08A" />
+        </g>
+      `;
+    } else if (isHappy && !this.isWilted) {
+      flower = `
+        <g transform="translate(18, 5)">
+          <circle cx="0" cy="0" r="4.5" fill="#F43F5E" />
+          <circle cx="-3" cy="-3" r="3" fill="#FDA4AF" />
+          <circle cx="3" cy="-3" r="3" fill="#FDA4AF" />
+          <circle cx="-3" cy="3" r="3" fill="#FDA4AF" />
+          <circle cx="3" cy="3" r="3" fill="#FDA4AF" />
+          <circle cx="0" cy="0" r="2.2" fill="#FBBF24" />
+        </g>
+      `;
+    }
+
+    // 2. Mắt biểu cảm theo trạng thái (Bình thường / Buồn / Chóng mặt / Ngủ gật)
     let eyes = "";
-    if (isHappy) {
+    if (this.isDizzy) {
+      eyes = `
+        <!-- Mắt xoay vòng chóng mặt -->
+        <path d="M 12 21 C 12 19, 16 19, 16 21 C 16 23, 13 23, 13 21.5" stroke="${eyeColor}" stroke-width="1.6" fill="none"/>
+        <path d="M 20 21 C 20 19, 24 19, 24 21 C 24 23, 21 23, 21 21.5" stroke="${eyeColor}" stroke-width="1.6" fill="none"/>
+        <ellipse cx="18" cy="26" rx="2" ry="1.5" fill="${eyeColor}" />
+      `;
+    } else if (this.isSleeping) {
+      eyes = `
+        <!-- Mắt nhắm ngủ gật -->
+        <line x1="12" y1="21" x2="16" y2="21" stroke="${eyeColor}" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="20" y1="21" x2="24" y2="21" stroke="${eyeColor}" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M 16 25 Q 18 26 20 25" stroke="${eyeColor}" stroke-width="1.3" fill="none"/>
+      `;
+    } else if (isHappy) {
       eyes = `
         <path d="M 12 21 Q 14 18 16 21" stroke="${eyeColor}" stroke-width="1.8" fill="none" stroke-linecap="round"/>
         <path d="M 20 21 Q 22 18 24 21" stroke="${eyeColor}" stroke-width="1.8" fill="none" stroke-linecap="round"/>
@@ -338,7 +470,6 @@ export class PetEngine {
         <line x1="12" y1="21" x2="16" y2="23" stroke="${eyeColor}" stroke-width="1.8" stroke-linecap="round"/>
         <line x1="20" y1="23" x2="24" y2="21" stroke="${eyeColor}" stroke-width="1.8" stroke-linecap="round"/>
         <path d="M 15 26 Q 18 23 21 26" stroke="${eyeColor}" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-        <!-- Giọt mồ hôi rơi -->
         <circle cx="27" cy="18" r="1.8" fill="#38BDF8" style="animation: mindfulSweatDrop 1.2s infinite;" />
       `;
     } else {
@@ -349,24 +480,46 @@ export class PetEngine {
       `;
     }
 
-    // Lá cây: vươn lên khi Happy/Neutral, héo rũ khi Sad
-    const leaves = isSad ? `
-      <!-- Thân rũ -->
-      <path d="M 18 18 C 18 13, 13 12, 12 11" stroke="#64748B" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-      <ellipse cx="10" cy="12" rx="4.5" ry="2.5" transform="rotate(-30 10 12)" fill="${leafColor}" />
-    ` : `
-      <!-- Thân thẳng -->
-      <path d="M 18 18 C 18 11, 18 9, 18 8" stroke="#059669" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-      <!-- 2 Lá non -->
-      <ellipse cx="13" cy="9" rx="5" ry="3" transform="rotate(-25 13 9)" fill="${leafColor}" />
-      <ellipse cx="23" cy="9" rx="5" ry="3" transform="rotate(25 23 9)" fill="${leafColor}" />
-    `;
+    // 3. Hình thái lá theo Tiến Hóa & Đứt chuỗi (Wilted)
+    let leaves = "";
+    if (this.isWilted) {
+      // Đứt chuỗi: rụng bớt lá vàng, cành hơi rũ
+      leaves = `
+        <path d="M 18 18 C 18 14, 13 13, 12 12" stroke="#78350F" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+        <ellipse cx="10" cy="13" rx="4" ry="2.2" transform="rotate(-35 10 13)" fill="#EAB308" />
+        <ellipse cx="23" cy="17" rx="3.2" ry="1.8" transform="rotate(30 23 17)" fill="#CA8A04" />
+      `;
+    } else if (stage === "seedling") {
+      // Mầm nhỏ ngày 1-3: Một chồi non nhỏ xíu
+      leaves = `
+        <path d="M 18 18 C 18 13, 18 11, 18 10" stroke="#059669" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+        <ellipse cx="18" cy="9.5" rx="3.5" ry="2.2" fill="${leafColor}" />
+      `;
+    } else if (isSad) {
+      leaves = `
+        <path d="M 18 18 C 18 13, 13 12, 12 11" stroke="#64748B" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <ellipse cx="10" cy="12" rx="4.5" ry="2.5" transform="rotate(-30 10 12)" fill="${leafColor}" />
+      `;
+    } else {
+      // Stage growing hoặc flowering: Cành xum xuê 2 lá vươn cao
+      leaves = `
+        <path d="M 18 18 C 18 11, 18 9, 18 8" stroke="#059669" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <ellipse cx="13" cy="9" rx="5" ry="3" transform="rotate(-25 13 9)" fill="${leafColor}" />
+        <ellipse cx="23" cy="9" rx="5" ry="3" transform="rotate(25 23 9)" fill="${leafColor}" />
+      `;
+    }
 
     const accessorySvg = this._renderAccessoryHead("default");
+    const zzzBadge = this.isSleeping ? `<span style="position:absolute; top:-8px; right:-6px; font-size:11px; font-weight:800; color:#93C5FD; animation:mindfulZzzFloat 2s infinite; pointer-events:none;">zZ</span>` : "";
+    const dizzyBadge = this.isDizzy ? `<span style="position:absolute; top:-10px; left:50%; transform:translateX(-50%); font-size:12px; pointer-events:none;">💫</span>` : "";
+    const wiltedBadge = this.isWilted ? `<span style="position:absolute; bottom:-2px; right:-4px; font-size:10px; pointer-events:none;" title="Lá úa do đứt chuỗi">🍂</span>` : "";
 
     return `
       <div class="${animClass}" style="position:relative; display:inline-flex; align-items:center; justify-content:center;">
-        <svg width="${size}" height="${size}" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        ${zzzBadge}
+        ${dizzyBadge}
+        ${wiltedBadge}
+        <svg width="${size}" height="${size}" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="${auraFilter}">
           ${leaves}
           ${flower}
           <!-- Chậu cây tròn cute -->
@@ -387,16 +540,20 @@ export class PetEngine {
     const isSad = this.mood === "sad";
     const isNeutral = this.mood === "neutral";
 
-    const animClass = isHappy ? "mindful-pet-anim-happy" : isNeutral ? "mindful-pet-anim-neutral" : "mindful-pet-anim-sad";
+    let animClass = isHappy ? "mindful-pet-anim-happy" : isNeutral ? "mindful-pet-anim-neutral" : "mindful-pet-anim-sad";
+    if (this.isDizzy) animClass = "mindful-pet-anim-dizzy";
+    else if (this.isSleeping) animClass = "mindful-pet-anim-sleeping";
+
     const bodyColor = isHappy ? "#8B5CF6" : isSad ? "#475569" : "#06B6D4";
+    const stage = this.evolutionStage || this._computeEvolutionStage();
+    const auraClass = stage === "flowering" ? "mindful-aura-flowering" : (stage === "growing" ? "mindful-aura-growing" : "");
 
     // Hỗ trợ 3 ảnh cảm xúc riêng biệt (Happy, Neutral, Sad), fallback sang uploadedImageBase64
     const puppetImgs = this.config.uploadedPuppetImages || {};
     const dedicatedFaceImg = puppetImgs[this.mood];
     const faceImg = dedicatedFaceImg || this.config.uploadedImageBase64;
 
-    // Hiệu ứng biểu cảm thêm
-    const overlayHeart = isHappy ? `
+    const overlayHeart = isHappy && !this.isWilted ? `
       <span style="position:absolute; top:-3px; right:-3px; font-size:${Math.max(10, Math.round(size * 0.25))}px; animation:mindfulHeartFloat 1.2s infinite; z-index:5;">❤️</span>
     ` : "";
 
@@ -404,17 +561,33 @@ export class PetEngine {
       <span style="position:absolute; top:2px; right:1px; font-size:${Math.max(9, Math.round(size * 0.22))}px; animation:mindfulSweatDrop 1s infinite; z-index:5;">💧</span>
     ` : "";
 
-    // Nếu là trạng thái buồn mà không có ảnh buồn riêng thì áp bộ lọc grayscale
-    const filterStyle = (isSad && !dedicatedFaceImg) ? "filter: grayscale(0.6) contrast(0.85);" : "";
+    const zzzBadge = this.isSleeping ? `
+      <span style="position:absolute; top:-6px; right:-4px; font-size:11px; font-weight:800; color:#93C5FD; animation:mindfulZzzFloat 2s infinite; z-index:6;">zZ</span>
+    ` : "";
+
+    const dizzyBadge = this.isDizzy ? `
+      <span style="position:absolute; top:-10px; left:50%; transform:translateX(-50%); font-size:12px; z-index:6;">💫</span>
+    ` : "";
+
+    const wiltedBadge = this.isWilted ? `
+      <span style="position:absolute; bottom:0; left:-2px; font-size:10px; z-index:6;" title="Đứt chuỗi - cần 1 phiên tập trung để phục hồi">🍂</span>
+    ` : "";
+
+    let filterStyle = "";
+    if (this.isWilted) {
+      filterStyle = "filter: grayscale(0.4) sepia(0.3);";
+    } else if (isSad && !dedicatedFaceImg) {
+      filterStyle = "filter: grayscale(0.6) contrast(0.85);";
+    }
+
     const faceSize = Math.max(24, Math.round(size * 0.65));
     const svgW = Math.max(30, Math.round(size * 0.85));
     const svgH = Math.max(18, Math.round(size * 0.5));
 
-    // Gương mặt tròn (Face Cutout)
     const faceElement = faceImg ? `
-      <img src="${faceImg}" style="width:${faceSize}px; height:${faceSize}px; border-radius:50%; object-fit:cover; border:1.5px solid #F8FAFC; box-shadow:0 2px 6px rgba(0,0,0,0.3); ${filterStyle}" alt="Pet Face" />
+      <img src="${faceImg}" class="${auraClass}" style="width:${faceSize}px; height:${faceSize}px; border-radius:50%; object-fit:cover; border:1.5px solid #F8FAFC; box-shadow:0 2px 6px rgba(0,0,0,0.3); ${filterStyle}" alt="Pet Face" />
     ` : `
-      <div style="width:${faceSize}px; height:${faceSize}px; border-radius:50%; background:linear-gradient(135deg, #6366F1, #8B5CF6); display:flex; align-items:center; justify-content:center; color:#fff; font-size:${Math.round(faceSize * 0.45)}px; font-weight:700;">
+      <div class="${auraClass}" style="width:${faceSize}px; height:${faceSize}px; border-radius:50%; background:linear-gradient(135deg, #6366F1, #8B5CF6); display:flex; align-items:center; justify-content:center; color:#fff; font-size:${Math.round(faceSize * 0.45)}px; font-weight:700;">
         👤
       </div>
     `;
@@ -425,21 +598,20 @@ export class PetEngine {
       <div class="${animClass}" style="position:relative; width:${size}px; height:${size}px; display:inline-flex; flex-direction:column; align-items:center; justify-content:center; user-select:none;">
         ${overlayHeart}
         ${overlaySweat}
+        ${zzzBadge}
+        ${dizzyBadge}
+        ${wiltedBadge}
         <div style="position:relative; z-index:2; margin-bottom:-${Math.round(size * 0.15)}px;">
           ${faceElement}
           ${accessoryHtml}
         </div>
         <!-- Khung cơ thể Chibi nhỏ nhắn dạng SVG -->
         <svg width="${svgW}" height="${svgH}" viewBox="0 0 34 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="z-index:1; overflow:visible;">
-          <!-- Thân áo chibi -->
           <rect x="7" y="4" width="20" height="12" rx="5" fill="${bodyColor}" />
-          <!-- Tay trái & tay phải -->
           <circle cx="5" cy="9" r="3.2" fill="${bodyColor}" />
           <circle cx="29" cy="9" r="3.2" fill="${bodyColor}" />
-          <!-- Hai chân nhỏ cute -->
           <ellipse cx="12" cy="17" rx="2.5" ry="2" fill="#1E293B" />
           <ellipse cx="22" cy="17" rx="2.5" ry="2" fill="#1E293B" />
-          <!-- Chi tiết áo / nơ -->
           ${isHappy ? `<polygon points="17,6 14,9 20,9" fill="#FBBF24" />` : `<circle cx="17" cy="8" r="1.5" fill="#F8FAFC" />`}
         </svg>
       </div>
@@ -452,7 +624,6 @@ export class PetEngine {
     const sprites = this.config.aiSprites || {};
     const spriteDataUri = sprites[this.mood] || sprites.happy || sprites.neutral || sprites.sad;
 
-    // Nếu chưa có sprite AI nào -> fallback về Puppet hoặc Default
     if (!spriteDataUri) {
       if (this.config.uploadedImageBase64) {
         return this._renderPuppet(size);
@@ -463,12 +634,27 @@ export class PetEngine {
     const isHappy = this.mood === "happy";
     const isSad = this.mood === "sad";
     const isNeutral = this.mood === "neutral";
-    const animClass = isHappy ? "mindful-pet-anim-happy" : isNeutral ? "mindful-pet-anim-neutral" : "mindful-pet-anim-sad";
+
+    let animClass = isHappy ? "mindful-pet-anim-happy" : isNeutral ? "mindful-pet-anim-neutral" : "mindful-pet-anim-sad";
+    if (this.isDizzy) animClass = "mindful-pet-anim-dizzy";
+    else if (this.isSleeping) animClass = "mindful-pet-anim-sleeping";
+
+    const stage = this.evolutionStage || this._computeEvolutionStage();
+    const auraClass = stage === "flowering" ? "mindful-aura-flowering" : (stage === "growing" ? "mindful-aura-growing" : "");
     const accessoryHtml = this._renderAccessoryHead("ai_generated");
+
+    const zzzBadge = this.isSleeping ? `<span style="position:absolute; top:-6px; right:-4px; font-size:11px; font-weight:800; color:#93C5FD; animation:mindfulZzzFloat 2s infinite; z-index:6;">zZ</span>` : "";
+    const dizzyBadge = this.isDizzy ? `<span style="position:absolute; top:-10px; left:50%; transform:translateX(-50%); font-size:12px; z-index:6;">💫</span>` : "";
+    const wiltedBadge = this.isWilted ? `<span style="position:absolute; bottom:0; left:-2px; font-size:10px; z-index:6;">🍂</span>` : "";
+
+    const filterStyle = this.isWilted ? "filter: grayscale(0.4) sepia(0.25);" : "";
 
     return `
       <div class="${animClass}" style="position:relative; display:inline-flex; align-items:center; justify-content:center; width:${size}px; height:${size}px; border-radius:8px; overflow:visible;">
-        <img src="${spriteDataUri}" style="width:100%; height:100%; object-fit:contain; border-radius:8px;" alt="AI Pet ${this.mood}" />
+        ${zzzBadge}
+        ${dizzyBadge}
+        ${wiltedBadge}
+        <img src="${spriteDataUri}" class="${auraClass}" style="width:100%; height:100%; object-fit:contain; border-radius:8px; ${filterStyle}" alt="AI Pet ${this.mood}" />
         ${accessoryHtml}
       </div>
     `;
@@ -487,6 +673,17 @@ export class PetEngine {
       return this._renderAiSprite(size);
     }
     return this._renderDefaultSprout(size);
+  }
+
+  /**
+   * Tạo HTML hiển thị Pet ôm lấy vòng tròn thở Box Breathing Mốc 3
+   */
+  getBreathingPetHtml(size = 64) {
+    return `
+      <div style="position:relative; display:inline-flex; align-items:center; justify-content:center; animation: mindfulBoxBreathe 12s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite; will-change:transform;">
+        ${this.getPetAvatarHtml(size)}
+      </div>
+    `;
   }
 
   // ─── Gắn Vào HUD & Vẽ Giao Diện ─────────────────────────────────────────────
@@ -548,12 +745,19 @@ export class PetEngine {
     `;
   }
 
-  // ─── Tương Tác Poke & Speech Bubble 4s (Cooldown 30 Phút) ───────────────────
+  // ─── Tương Tác Poke & Speech Bubble (Hỗ Trợ Cho Ăn Hạt & Lời Thoại Người Thương) ───
 
   handlePoke() {
     this.cheerUp();
 
-    // 1. Kiểm tra Cooldown năng lượng: 30 phút tối đa +3 năng lượng 1 lần
+    // 1. Nếu đang ngủ gật -> tỉnh giấc
+    if (this.isSleeping) {
+      this.setSleeping(false);
+      this._showSpeechBubble("Oáp... Tớ tỉnh dậy rồi nè! Chào bạn! ✨");
+      return;
+    }
+
+    // 2. Kiểm tra Cooldown năng lượng: 30 phút tối đa +3 năng lượng 1 lần
     const now = Date.now();
     const cooldownMs = 30 * 60 * 1000;
     const canGainEnergy = (now - this.lastPokeEnergyTime) >= cooldownMs;
@@ -573,22 +777,58 @@ export class PetEngine {
       energyBonusText = `<div style="font-size:10px; color:#10B981; font-weight:700; margin-top:2px;">+3⚡ Năng lượng phục hồi!</div>`;
     }
 
-    // 2. Danh sách lời nhắc thức tỉnh & thể chất ngẫu nhiên
-    const reminders = [
-      "💧 Hãy uống một ngụm nước ấm nhé!",
-      "🌬️ Thả lỏng vai và hít thở sâu 3 nhịp nào!",
-      "🎯 Đừng quên mục tiêu lớn của bạn hôm nay!",
-      "👀 Nhìn ra xa 6 mét trong 20 giây để thư giãn mắt!",
-      "🧘 Ngồi thẳng lưng lên một chút bạn ơi!",
-      "✨ Bạn đang làm chủ thời gian rất tốt!"
-    ];
-    const quote = reminders[Math.floor(Math.random() * reminders.length)];
+    // 3. Chọn lời thoại (Ưu tiên câu cá nhân hóa Người thương / Mục tiêu lớn)
+    let quote = "";
+    if (this.isWilted) {
+      quote = "Mầm xanh đang bị úa do đứt chuỗi... Hãy hoàn thành 1 phiên Pomodoro hoặc cho tớ 1 hạt mầm để hồi sinh nhé! 🍂";
+    } else if (this.customQuotes && this.customQuotes.length > 0 && (this.mood === "sad" || Math.random() < 0.7)) {
+      // Ưu tiên câu cá nhân hóa
+      quote = this.customQuotes[Math.floor(Math.random() * this.customQuotes.length)];
+    } else {
+      const reminders = [
+        "💧 Hãy uống một ngụm nước ấm nhé!",
+        "🌬️ Thả lỏng vai và hít thở sâu 3 nhịp nào!",
+        "🎯 Đừng quên mục tiêu lớn của bạn hôm nay!",
+        "👀 Nhìn ra xa 6 mét trong 20 giây để thư giãn mắt!",
+        "🧘 Ngồi thẳng lưng lên một chút bạn ơi!",
+        "✨ Bạn đang làm chủ thời gian rất tốt!"
+      ];
+      quote = reminders[Math.floor(Math.random() * reminders.length)];
+    }
 
-    // 3. Hiển thị Speech Bubble
-    this._showSpeechBubble(quote, energyBonusText);
+    // 4. Nút bấm tương tác Cho ăn Hạt mầm tri thức nếu có
+    let feedBtnHtml = "";
+    if (this.knowledgeSeeds > 0) {
+      feedBtnHtml = `
+        <div style="margin-top:6px; display:flex; justify-content:center;">
+          <button id="mindful-pet-feed-btn" style="
+            background: linear-gradient(135deg, #10B981, #059669);
+            border: none; color: #fff; font-size: 10px; font-weight: 700;
+            padding: 4px 10px; border-radius: 6px; cursor: pointer;
+            box-shadow: 0 2px 8px rgba(16,185,129,0.4); pointer-events: auto;
+          ">
+            🌱 Cho ăn Hạt mầm (${this.knowledgeSeeds}) +15⚡
+          </button>
+        </div>
+      `;
+    }
+
+    // 5. Hiển thị Speech Bubble
+    this._showSpeechBubble(quote, `${energyBonusText}${feedBtnHtml}`, true);
+
+    // Gắn sự kiện cho nút Cho ăn nếu có
+    if (this.knowledgeSeeds > 0 && this._speechBubbleEl) {
+      const feedBtn = this._speechBubbleEl.querySelector("#mindful-pet-feed-btn");
+      if (feedBtn) {
+        feedBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.feedSeed();
+        });
+      }
+    }
   }
 
-  _showSpeechBubble(text, bonusHtml = "") {
+  _showSpeechBubble(text, bonusHtml = "", isInteractive = false) {
     if (!this.containerEl) return;
 
     if (this._speechBubbleEl) {
@@ -617,23 +857,24 @@ export class PetEngine {
       font-weight: 600;
       line-height: 1.35;
       text-align: center;
-      white-space: nowrap;
+      white-space: normal;
+      min-width: 140px;
+      max-width: 240px;
       z-index: 2147483647;
       box-shadow: 0 8px 24px rgba(0,0,0,0.55), 0 0 12px rgba(139,92,246,0.3);
       animation: mindfulBubblePop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-      pointer-events: none;
+      pointer-events: ${isInteractive ? "auto" : "none"};
     `;
 
     bubble.innerHTML = `
       <div>${text}</div>
       ${bonusHtml}
-      <!-- Mũi tên bóng thoại nhỏ chỉ xuống -->
       <div style="position:absolute; top:100%; left:50%; transform:translateX(-50%); width:0; height:0; border-left:6px solid transparent; border-right:6px solid transparent; border-top:6px solid rgba(15, 23, 42, 0.94);"></div>
     `;
 
     this.containerEl.appendChild(bubble);
 
-    // Rule 2: Tự ẩn sau 4 giây
+    // Tự ẩn sau 4.5 giây
     this._bubbleTimer = setTimeout(() => {
       if (this._speechBubbleEl) {
         this._speechBubbleEl.style.transition = "opacity 0.25s ease, transform 0.25s ease";
@@ -646,7 +887,60 @@ export class PetEngine {
           }
         }, 250);
       }
-    }, 4000);
+    }, 4500);
+  }
+
+  // ─── Kích Hoạt Hành Vi Ngữ Cảnh Thời Gian Thực ─────────────────────────────
+
+  triggerDizzy() {
+    this.isDizzy = true;
+    this.render();
+    if (this._dizzyTimer) clearTimeout(this._dizzyTimer);
+    this._dizzyTimer = setTimeout(() => {
+      this.isDizzy = false;
+      this.render();
+    }, 6000);
+
+    this._showSpeechBubble("Chóng mặt quá! Bảng tin chưa kịp cập nhật đâu mà! 😵💫");
+  }
+
+  triggerLateNight() {
+    this._showSpeechBubble("Tớ buồn ngủ rồi, chúng ta cất máy đi ngủ thôi... 🥱💤");
+  }
+
+  triggerPomodoroCelebration() {
+    this.reviveFromWilt();
+    this.reward(15, "pomodoro_complete");
+    this.cheerUp();
+    this._showSpeechBubble("Xuất sắc lắm! Bạn vừa hoàn thành một phiên tập trung tuyệt vời! 🎉✨");
+  }
+
+  addKnowledgeSeed() {
+    this.knowledgeSeeds = (this.knowledgeSeeds || 0) + 1;
+    this._saveState();
+    this.cheerUp();
+    this._showSpeechBubble(`+1 Hạt mầm tri thức 🌱! Đã tích lũy ${this.knowledgeSeeds} hạt. Chạm vào Pet để cho ăn nhé!`);
+  }
+
+  feedSeed() {
+    if (this.knowledgeSeeds <= 0) return;
+    this.knowledgeSeeds--;
+    this.reward(15, "knowledge_seed");
+    this.reviveFromWilt();
+    this._saveState();
+    this.cheerUp();
+    this._showSpeechBubble("Ngon quá! Năng lượng +15⚡ và mầm xanh bừng sáng! 🌱✨");
+  }
+
+  reviveFromWilt() {
+    if (this.isWilted) {
+      this.isWilted = false;
+      this._saveState();
+      this.render();
+      this.showPetToast("🌿 Mầm xanh đã hồi sinh màu xanh tươi tốt! Cùng nhau tiếp tục giữ vững chuỗi nhé! ✨", {
+        title: "Hồi Sinh Sức Sống"
+      });
+    }
   }
 
   // ─── Điều Hòa Năng Lượng & Tâm Trạng (State Machine) ─────────────────────────
@@ -660,6 +954,10 @@ export class PetEngine {
           mood: this.mood,
           currentStreak: this.currentStreak,
           streakDays: this.streakDays,
+          knowledgeSeeds: this.knowledgeSeeds,
+          customQuotes: this.customQuotes,
+          isWilted: this.isWilted,
+          evolutionStage: this._computeEvolutionStage(),
           lastActiveTimestamp: Date.now()
         });
         chrome.storage.local.set({ pet_state: state });

@@ -106,9 +106,13 @@ export class PomodoroManager {
     const wasFocus = this.state.sessionType === "focus";
 
     if (wasFocus) {
-      // 1. Vừa hoàn thành hiệp Focus -> Thưởng Pet +15⚡
+      // 1. Vừa hoàn thành hiệp Focus -> Thưởng Pet +15⚡ và hoạt cảnh ăn mừng / hồi sinh mầm xanh
       if (this.petEngine) {
-        this.petEngine.reward(15, "pomodoro_complete");
+        if (typeof this.petEngine.triggerPomodoroCelebration === "function") {
+          this.petEngine.triggerPomodoroCelebration();
+        } else {
+          this.petEngine.reward(15, "pomodoro_complete");
+        }
       }
 
       if (this.state.currentCycle < this.state.totalCycles) {

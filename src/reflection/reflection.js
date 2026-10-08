@@ -502,16 +502,23 @@ function renderAiCoach(coachResult) {
 
 function renderSuggestedKeywords(suggestions) {
   const container = document.getElementById("suggested-keywords-list");
+  const btnApproveAll = document.getElementById("btn-approve-all-keywords");
   if (!container) return;
 
   container.innerHTML = "";
 
   if (!Array.isArray(suggestions) || suggestions.length === 0) {
+    if (btnApproveAll) btnApproveAll.style.display = "none";
     const emptyDiv = document.createElement("div");
     emptyDiv.className = "empty";
     emptyDiv.textContent = "Chưa có đề xuất từ khóa mới. Bấm \"Quét Video Chưa Khớp\" để AI phân tích.";
     container.appendChild(emptyDiv);
     return;
+  }
+
+  // Hiển thị nút "Thêm tất cả" khi có đề xuất
+  if (btnApproveAll) {
+    btnApproveAll.style.display = "inline-flex";
   }
 
   suggestions.forEach(item => {
@@ -608,24 +615,44 @@ function renderSuggestedKeywords(suggestions) {
 
 function setupEvolveFilterButton() {
   const btn = document.getElementById("btn-trigger-evolve");
-  if (!btn) return;
+  const btnApproveAll = document.getElementById("btn-approve-all-keywords");
 
-  btn.addEventListener("click", () => {
-    btn.disabled = true;
-    const oldText = btn.textContent;
-    btn.textContent = "⏳ Đang quét AI...";
+  if (btn) {
+    btn.addEventListener("click", () => {
+      btn.disabled = true;
+      const oldText = btn.textContent;
+      btn.textContent = "⏳ Đang quét AI...";
 
-    chrome.runtime.sendMessage({ type: "GEMINI_EVOLVE_FILTER" }, (res) => {
-      btn.disabled = false;
-      btn.textContent = oldText;
+      chrome.runtime.sendMessage({ type: "GEMINI_EVOLVE_FILTER" }, (res) => {
+        btn.disabled = false;
+        btn.textContent = oldText;
 
-      if (res && res.ok) {
-        renderSuggestedKeywords(res.suggestions || []);
-      } else if (res && res.error) {
-        alert(res.error);
-      }
+        if (res && res.ok) {
+          renderSuggestedKeywords(res.suggestions || []);
+        } else if (res && res.error) {
+          alert(res.error);
+        }
+      });
     });
-  });
+  }
+
+  // Nút duyệt nhanh toàn bộ từ khóa AI đề xuất (Approve All)
+  if (btnApproveAll) {
+    btnApproveAll.addEventListener("click", () => {
+      btnApproveAll.disabled = true;
+      const oldText = btnApproveAll.textContent;
+      btnApproveAll.textContent = "⏳ Đang thêm tất cả...";
+
+      chrome.runtime.sendMessage({ type: "APPROVE_ALL_KEYWORDS" }, (res) => {
+        btnApproveAll.disabled = false;
+        btnApproveAll.textContent = oldText;
+
+        if (res && res.ok) {
+          renderSuggestedKeywords([]);
+        }
+      });
+    });
+  }
 }
 
 // ─── 5. Persona & Streak (Long-term) ──────────────────────────────────────────
@@ -692,13 +719,16 @@ function setupSaveButton() {
           if (res && res.coachResult) {
             renderAiCoach(res.coachResult);
           }
-          if (res && res.persona) {
-            chrome.storage.local.get(["pet_state"], (pRes) => {
-              renderPersona(res.persona, pRes.pet_state);
-            });
-          }
+          chrome.storage.local.get(["pet_state"], (pRes) => {
+            const pet = pRes.pet_state || {};
+            pet.knowledgeSeeds = (pet.knowledgeSeeds || 0) + 1;
+            chrome.storage.local.set({ pet_state: pet });
+            if (res && res.persona) {
+              renderPersona(res.persona, pet);
+            }
+          });
           if (toast) {
-            toast.textContent = "✅ Đã nhận phản hồi từ AI Coach! Chúc bạn ngủ ngon! 🌟";
+            toast.textContent = "✅ Đã nhận phản hồi từ AI Coach! Thưởng +1 Hạt mầm tri thức 🌱 cho Pet. Chúc bạn ngủ ngon! 🌟";
             setTimeout(() => { toast.style.display = "none"; }, 5000);
           }
         });

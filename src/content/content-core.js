@@ -767,9 +767,13 @@ loadAppData(({ config, dayData: loaded, petState, pomodoroState }) => {
     },
     onImpulsive: (reason) => {
       petEngine?.penalize(reason === "reload_spam" ? 5 : 20, reason);
+      if (reason === "reload_spam") {
+        petEngine?.triggerDizzy();
+      }
     },
     onUseful: () => {
       petEngine?.reward(10, "useful_video");
+      petEngine?.addKnowledgeSeed();
     }
   });
 
@@ -783,6 +787,19 @@ loadAppData(({ config, dayData: loaded, petState, pomodoroState }) => {
   evaluateGrayscaleMode();
   setInterval(evaluateGrayscaleMode, 30000);
 
+  // Kiểm tra lướt quá khuya (> 23h hoặc < 5h) kích hoạt ngáp ngủ và bóng thoại
+  let hasTriggeredLateNightNotice = false;
+  const checkLateNight = () => {
+    const currentHour = new Date().getHours();
+    if ((currentHour >= 23 || currentHour < 5) && !hasTriggeredLateNightNotice) {
+      hasTriggeredLateNightNotice = true;
+      setTimeout(() => {
+        petEngine?.triggerLateNight();
+      }, 4000);
+    }
+  };
+  checkLateNight();
+
   // Đếm ngược phiên lướt và cập nhật HUD định kỳ mỗi 5s
   setInterval(() => {
     friction?.checkSessionTimer(petEngine);
@@ -792,6 +809,7 @@ loadAppData(({ config, dayData: loaded, petState, pomodoroState }) => {
   // Ghi nhận mốc hoạt động mỗi 60s để tính Digital Detox Idle Recovery
   setInterval(() => {
     chrome.storage.local.set({ lastActiveTimestamp: Date.now() });
+    checkLateNight();
   }, 60000);
 
   onRouteChanged();

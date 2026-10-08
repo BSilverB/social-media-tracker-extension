@@ -583,9 +583,11 @@
         <!-- SVG Pet injected here -->
       </div>
       <div>
-        <div style="display:flex; align-items:center; gap:6px;">
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
           <span style="font-size:12px; font-weight:700; color:#fff;" id="popup-pet-name">Linh vật Đồng hành</span>
           <span id="popup-pet-mood-badge" style="font-size:10px; padding:1px 6px; border-radius:10px; background:rgba(16,185,129,0.2); color:#10B981; font-weight:600;">✨ Tươi tỉnh</span>
+          <span id="popup-pet-stage-badge" style="font-size:9.5px; padding:1px 6px; border-radius:10px; background:rgba(6,182,212,0.2); color:#67E8F9; font-weight:700;">🌱 Mầm non</span>
+          <span id="popup-pet-wilted-badge" style="display:none; font-size:9.5px; padding:1px 6px; border-radius:10px; background:rgba(239,68,68,0.25); color:#FCA5A5; font-weight:700;">🍂 Đứt chuỗi</span>
         </div>
         <div style="display:flex; align-items:center; gap:6px; margin-top:3px;">
           <span style="font-size:10px; color:var(--text-muted);">Năng lượng:</span>
@@ -593,6 +595,7 @@
             <div id="popup-pet-energy-bar" style="width:85%; height:100%; background:linear-gradient(90deg, #10B981, #06B6D4); transition:width 0.4s ease;"></div>
           </div>
           <span id="popup-pet-energy-text" style="font-size:10px; font-weight:700; color:#06B6D4;">85%</span>
+          <span style="font-size:10px; color:#A78BFA; margin-left:4px;">🌱 <b id="popup-banner-seeds">0</b> hạt</span>
         </div>
       </div>
     </div>
@@ -1177,6 +1180,61 @@
             </button>
           </div>
         </div>
+      </div>
+    <!-- Card Kho Hạt Giống Tri Thức (Knowledge Seeds) -->
+    <div class="card" style="border: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.06);">
+      <div class="card-header">
+        <span class="card-title" style="color: #6EE7B7;">🌱 Kho Hạt Giống Tri Thức</span>
+        <span id="popup-seeds-badge" class="badge-info" style="background: rgba(16, 185, 129, 0.2); color: #6EE7B7;">0 Hạt</span>
+      </div>
+      <div style="font-size:10px; color:var(--text-secondary); margin-bottom:8px; line-height:1.45;">
+        Nhận +1 hạt mầm khi xem trọn vẹn video học tập ≥ 80% thời lượng hoặc hoàn thành phản tư lúc 22h00.
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:8px 12px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:24px;">🌱</span>
+          <div>
+            <div style="font-size:11px; font-weight:700; color:#F8FAFC;">Hạt mầm tích lũy</div>
+            <div style="font-size:9.5px; color:#A7F3D0;">Hồi phục ngay +15⚡ & Hồi sinh lá úa</div>
+          </div>
+        </div>
+        <button id="btn-feed-pet-seed" type="button" style="background:linear-gradient(135deg, #10B981, #059669); border:none; color:#fff; font-size:10.5px; font-weight:700; padding:6px 12px; border-radius:8px; cursor:pointer; box-shadow:0 2px 8px rgba(16,185,129,0.35);">
+          Cho Pet ăn
+        </button>
+      </div>
+    </div>
+
+    <!-- Card Câu Nói Truyền Cảm Hứng (Người thương / Mục tiêu lớn) -->
+    <div class="card" style="border: 1px solid rgba(236, 72, 153, 0.35); background: rgba(236, 72, 153, 0.05);">
+      <div class="card-header">
+        <span class="card-title" style="color: #F472B6;">💖 Lời Thoại Người Thương & Mục Tiêu</span>
+        <span class="badge-info" style="background: rgba(236, 72, 153, 0.2); color: #F472B6;">Cá nhân hóa</span>
+      </div>
+      <div style="font-size:10px; color:var(--text-secondary); margin-bottom:8px; line-height:1.45;">
+        Cài đặt 3-5 câu nói khích lệ để Pet nhắc nhở bạn khi Poke hoặc khi rơi vào trạng thái buồn/xao nhãng:
+      </div>
+      
+      <!-- Preset buttons -->
+      <div style="display:flex; gap:6px; margin-bottom:10px;">
+        <button type="button" id="btn-apply-quotes-partner" style="flex:1; background:rgba(236,72,153,0.15); border:1px solid rgba(236,72,153,0.3); color:#FBCFE8; font-size:9.5px; font-weight:700; padding:5px 0; border-radius:6px; cursor:pointer;">
+          💖 Mẫu Người Thương
+        </button>
+        <button type="button" id="btn-apply-quotes-goal" style="flex:1; background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.3); color:#DDD6FE; font-size:9.5px; font-weight:700; padding:5px 0; border-radius:6px; cursor:pointer;">
+          🎯 Mẫu Mục Tiêu Lớn
+        </button>
+      </div>
+
+      <!-- List of custom quotes -->
+      <div id="custom-quotes-list" style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;">
+        <!-- Quotes rendered dynamically -->
+      </div>
+
+      <!-- Add new quote input -->
+      <div style="display:flex; gap:6px;">
+        <input type="text" id="input-new-custom-quote" placeholder="Nhập câu khích lệ mới..." maxlength="70" style="flex:1; box-sizing:border-box; background:rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:6px; padding:5px 8px; font-size:11px;">
+        <button type="button" id="btn-add-custom-quote" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; font-size:11px; font-weight:700; padding:0 10px; border-radius:6px; cursor:pointer;">
+          + Thêm
+        </button>
       </div>
     </div>
 

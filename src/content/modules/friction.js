@@ -681,7 +681,7 @@ export class FrictionManager {
           <div style="font-size:11px; color:#94A3B8; margin-top:3px; font-style:italic;">Người thương luôn tin bạn sẽ làm chủ được bản thân!</div>
         </div>
 
-        <!-- Box Breathing Widget 12s (4s Hít - 4s Giữ - 4s Thở) -->
+        <!-- Box Breathing Widget 12s (Pet ôm vòng tròn bài tập thở đồng bộ) -->
         <div style="position:relative; width:160px; height:160px; display:flex; align-items:center; justify-content:center; margin-bottom:16px;">
           <!-- SVG Progress Ring 12s -->
           <svg width="160" height="160" style="position:absolute; top:0; left:0; transform:rotate(-90deg); overflow:visible;">
@@ -690,11 +690,12 @@ export class FrictionManager {
               stroke-linecap="round" stroke-dasharray="440" stroke-dashoffset="440" style="transition: stroke-dashoffset 0.1s linear, stroke 0.4s ease;" />
           </svg>
 
-          <!-- Animated Breathing Orb -->
-          <div id="mindful-breathing-orb" style="width:78px; height:78px; border-radius:50%;
-            display:flex; flex-direction:column; align-items:center; justify-content:center;
+          <!-- Animated Breathing Orb với Pet ôm vòng thở co giãn đồng bộ -->
+          <div id="mindful-breathing-orb" style="width:84px; height:84px; border-radius:50%;
+            display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative;
             animation: mindfulBoxBreathe 12s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite; will-change:transform;">
-            <div id="mindful-breath-countdown" style="font-size:20px; font-weight:800; color:#fff; text-shadow:0 2px 6px rgba(0,0,0,0.6);">12s</div>
+            ${this.petEngine ? this.petEngine.getPetAvatarHtml(46) : `<div style="font-size:36px;">🧘</div>`}
+            <div id="mindful-breath-countdown" style="position:absolute; bottom:-6px; font-size:10px; font-weight:800; color:#fff; background:rgba(15,23,42,0.9); padding:1px 6px; border-radius:8px; border:1px solid #06B6D4; text-shadow:0 1px 3px rgba(0,0,0,0.6);">12s</div>
           </div>
         </div>
 

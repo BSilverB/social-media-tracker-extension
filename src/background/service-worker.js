@@ -17,6 +17,7 @@ import {
   queueDesktopSyncToFirebase,
   pushDataToFirebase,
   pushConfigToFirebase,
+  pushKeywordsWithCloudMerge,
   getFirebaseSyncSettings,
   startFirebaseRealtimeStream
 } from "../utils/firebase-service.js";
@@ -439,6 +440,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // 6b. Chấp nhận tất cả từ khóa AI đề xuất (Approve All 1-chạm)
+  if (msg.type === "APPROVE_ALL_KEYWORDS") {
+    handleApproveAllKeywords().then(res => sendResponse(res));
+    return true;
+  }
+
   // 7. Bỏ qua từ khóa AI đề xuất
   if (msg.type === "DISMISS_KEYWORD") {
     handleDismissKeyword(msg.word).then(res => sendResponse(res));
@@ -703,6 +710,7 @@ async function handleEvolveFilter() {
 
 /**
  * Thêm từ khóa AI đề xuất vào bộ lọc tương ứng (target, leisure, hoặc distraction)
+ * Tự động Deep Merge với Firebase Server để tránh ghi đè dữ liệu.
  */
 async function handleApproveKeyword(word, category = "target") {
   if (!word) return { ok: false };
@@ -710,7 +718,7 @@ async function handleApproveKeyword(word, category = "target") {
   const validCat = ["target", "leisure", "distraction"].includes(category) ? category : "target";
 
   return new Promise((resolve) => {
-    chrome.storage.local.get(["app_config"], (res) => {
+    chrome.storage.local.get(["app_config"], async (res) => {
       const config = res.app_config || {};
       config.keywords = config.keywords || { target: [], leisure: [], distraction: [] };
       const list = config.keywords[validCat] || [];
@@ -724,8 +732,70 @@ async function handleApproveKeyword(word, category = "target") {
       const suggestions = (config.suggestedKeywords || []).filter(s => s.word.toLowerCase() !== cleanWord);
       config.suggestedKeywords = suggestions;
 
-      chrome.storage.local.set({ app_config: config }, () => {
+      // Cập nhật local storage
+      chrome.storage.local.set({ app_config: config }, async () => {
+        // Deep Merge tức thì lên Firebase Server
+        try {
+          await pushKeywordsWithCloudMerge({ [validCat]: [cleanWord] });
+        } catch (_) {}
         resolve({ ok: true, keywords: config.keywords, suggestions, category: validCat });
+      });
+    });
+  });
+}
+
+/**
+ * Duyệt toàn bộ danh sách từ khóa AI đề xuất trong 1 cú click (Approve All)
+ * Tự động phân loại theo category của từng từ và Deep Merge với Firebase Server.
+ */
+async function handleApproveAllKeywords() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(["app_config"], async (res) => {
+      const config = res.app_config || {};
+      const suggestions = config.suggestedKeywords || [];
+      if (suggestions.length === 0) {
+        return resolve({ ok: true, count: 0, keywords: config.keywords });
+      }
+
+      config.keywords = config.keywords || { target: [], leisure: [], distraction: [] };
+      const toMerge = { target: [], leisure: [], distraction: [] };
+
+      suggestions.forEach(item => {
+        const w = String(item.word || "").trim().toLowerCase();
+        let cat = String(item.category || "target").toLowerCase();
+        if (!["target", "leisure", "distraction"].includes(cat)) cat = "target";
+        if (w.length >= 2) {
+          toMerge[cat].push(w);
+        }
+      });
+
+      // Gộp vào config.keywords local
+      ["target", "leisure", "distraction"].forEach(cat => {
+        const existing = config.keywords[cat] || [];
+        const seen = new Set(existing.map(k => k.toLowerCase()));
+        toMerge[cat].forEach(w => {
+          if (!seen.has(w)) {
+            existing.push(w);
+            seen.add(w);
+          }
+        });
+        config.keywords[cat] = existing;
+      });
+
+      // Xóa sạch hàng đợi đề xuất sau khi duyệt hết
+      config.suggestedKeywords = [];
+
+      chrome.storage.local.set({ app_config: config }, async () => {
+        // Đẩy toàn bộ lên Cloud với Deep Merge
+        try {
+          await pushKeywordsWithCloudMerge(toMerge);
+        } catch (_) {}
+        resolve({
+          ok: true,
+          count: suggestions.length,
+          keywords: config.keywords,
+          suggestions: []
+        });
       });
     });
   });

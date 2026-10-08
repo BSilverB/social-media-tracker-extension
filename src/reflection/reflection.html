@@ -719,11 +719,16 @@
 
     <!-- Self-evolving Static Filter Card (Giai đoạn 4) -->
     <div class="card" id="card-evolve-filter">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:8px; flex-wrap:wrap;">
         <div class="card-title" style="margin-bottom:0;">🧬 AI Đề xuất Từ khóa cho Bộ Lọc Tĩnh</div>
-        <button id="btn-trigger-evolve" style="background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.4); color:#A78BFA; font-size:11px; font-weight:600; padding:4px 10px; border-radius:6px; cursor:pointer;">
-          ⚡ Quét Video Chưa Khớp
-        </button>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button id="btn-approve-all-keywords" style="display:none; background:rgba(16,185,129,0.18); border:1px solid rgba(16,185,129,0.45); color:#34D399; font-size:11px; font-weight:700; padding:4px 10px; border-radius:6px; cursor:pointer;" title="Duyệt toàn bộ từ khóa AI đề xuất và nạp vào bộ lọc chỉ với 1 cú click">
+            ✓ Thêm tất cả vào Bộ lọc
+          </button>
+          <button id="btn-trigger-evolve" style="background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.4); color:#A78BFA; font-size:11px; font-weight:600; padding:4px 10px; border-radius:6px; cursor:pointer;">
+            ⚡ Quét Video Chưa Khớp
+          </button>
+        </div>
       </div>
       <div style="font-size:12px; color:var(--muted); margin-bottom:14px;">
         AI tự động trích xuất các chủ đề/từ khóa xuất hiện nhiều trong ngày để bạn nâng cấp bộ lọc tĩnh không tốn token:

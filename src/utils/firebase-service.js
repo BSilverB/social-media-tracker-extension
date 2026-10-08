@@ -287,7 +287,14 @@ export function queueDesktopSyncToFirebase(dateStr, dayData, petState = null) {
             accessories: petState.accessories || {
               unlockedItems: ["sunglasses", "laurel"],
               equippedHead: null
-            }
+            },
+            knowledgeSeeds: petState.knowledgeSeeds ?? 0,
+            customQuotes: Array.isArray(petState.customQuotes) ? petState.customQuotes : [],
+            isWilted: Boolean(petState.isWilted),
+            evolutionStage: petState.evolutionStage || (
+              (petState.currentStreak ?? petState.streakDays ?? 1) >= 21 ? "flowering" :
+              (petState.currentStreak ?? petState.streakDays ?? 1) >= 4 ? "growing" : "seedling"
+            )
           })
         });
 
@@ -309,13 +316,114 @@ export function queueDesktopSyncToFirebase(dateStr, dayData, petState = null) {
 }
 
 /**
+ * Helper hợp nhất danh sách từ khóa không trùng lặp (case-insensitive)
+ */
+function mergeKeywordLists(...lists) {
+  const result = [];
+  const seen = new Set();
+  for (const list of lists) {
+    if (Array.isArray(list)) {
+      for (const item of list) {
+        const clean = String(item || "").trim().toLowerCase();
+        if (clean.length >= 2 && !seen.has(clean)) {
+          seen.add(clean);
+          result.push(clean);
+        }
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * Đọc từ khóa mới nhất từ Firebase, gộp với từ khóa mới và lưu lên cả Local + Cloud
+ * Ngăn chặn tuyệt đối tình trạng Extension ghi đè làm mất từ khóa mà App vừa tự học.
+ */
+export async function pushKeywordsWithCloudMerge(newKeywords = {}) {
+  try {
+    const settings = await getFirebaseSyncSettings();
+    if (!settings.syncCode) return null;
+
+    const kwUrl = buildDatabaseUrl(`users/${settings.syncCode}/config/keywords`, settings.authToken);
+
+    // 1. Đọc từ khóa hiện có trên Firebase Server
+    let cloudKeywords = {};
+    try {
+      const res = await fetch(kwUrl);
+      if (res.ok) {
+        cloudKeywords = (await res.json()) || {};
+      }
+    } catch (err) {
+      console.warn("[FirebaseService] Không thể đọc cloud keywords trước khi merge:", err.message);
+    }
+
+    // 2. Lấy từ khóa trong local storage
+    const local = await new Promise((res) => chrome.storage.local.get(["app_config"], res));
+    const currentCfg = local.app_config || {};
+    const localKeywords = currentCfg.keywords || { target: [], leisure: [], distraction: [] };
+
+    // 3. Hợp nhất 3 nguồn: Cloud + Local + New
+    const mergedKeywords = {
+      target: mergeKeywordLists(cloudKeywords.target, localKeywords.target, newKeywords.target),
+      leisure: mergeKeywordLists(cloudKeywords.leisure, localKeywords.leisure, newKeywords.leisure),
+      distraction: mergeKeywordLists(cloudKeywords.distraction, localKeywords.distraction, newKeywords.distraction)
+    };
+
+    // 4. Cập nhật local storage
+    currentCfg.keywords = mergedKeywords;
+    await new Promise((res) => chrome.storage.local.set({ app_config: currentCfg }, res));
+
+    // 5. Đẩy lên Firebase nhánh config/keywords
+    await fetch(kwUrl, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(mergedKeywords)
+    });
+
+    console.log("[FirebaseService] 🟢 Đã Deep Merge và đẩy từ khóa lên Firebase thành công:", mergedKeywords);
+    return mergedKeywords;
+  } catch (err) {
+    console.warn("[FirebaseService] Lỗi pushKeywordsWithCloudMerge:", err.message);
+    return null;
+  }
+}
+
+/**
  * Cập nhật cấu hình chung lên users/{syncCode}/config theo đúng schema
+ * Áp dụng Read-Latest-Cloud & Deep Merge cho keywords để không ghi đè chéo.
  * TUYỆT ĐỐI KHÔNG GỬI API KEY GEMINI LÊN CLOUD (Bảo mật 100%)
  */
 export async function pushConfigToFirebase(config) {
   try {
     const settings = await getFirebaseSyncSettings();
     const url = buildDatabaseUrl(`users/${settings.syncCode}/config`, settings.authToken);
+    const kwUrl = buildDatabaseUrl(`users/${settings.syncCode}/config/keywords`, settings.authToken);
+
+    // 1. Đọc từ khóa hiện tại trên Cloud để Deep Merge trước khi ghi
+    let cloudKeywords = {};
+    try {
+      const kwRes = await fetch(kwUrl);
+      if (kwRes.ok) {
+        cloudKeywords = (await kwRes.json()) || {};
+      }
+    } catch (_) {}
+
+    const localKeywords = config.keywords || {};
+    const finalKeywords = {
+      target: mergeKeywordLists(cloudKeywords.target, localKeywords.target),
+      leisure: mergeKeywordLists(cloudKeywords.leisure, localKeywords.leisure),
+      distraction: mergeKeywordLists(cloudKeywords.distraction, localKeywords.distraction)
+    };
+
+    // Nếu Cloud có từ mới mà local chưa có, đồng bộ lại vào local
+    if (
+      finalKeywords.target.length > (localKeywords.target?.length || 0) ||
+      finalKeywords.leisure.length > (localKeywords.leisure?.length || 0) ||
+      finalKeywords.distraction.length > (localKeywords.distraction?.length || 0)
+    ) {
+      config.keywords = finalKeywords;
+      chrome.storage.local.set({ app_config: config });
+    }
 
     const safeConfig = {
       syncCode: settings.syncCode,
@@ -372,11 +480,7 @@ export async function pushConfigToFirebase(config) {
           }
         }
       },
-      keywords: {
-        target: config.keywords?.target || ["lập trình", "tiếng anh", "kỹ năng", "sách", "học", "phát triển", "tài chính"],
-        leisure: config.keywords?.leisure || ["hài", "game", "gaming", "vlog", "ca nhạc", "nấu ăn"],
-        distraction: config.keywords?.distraction || ["drama", "bóc phốt", "hóng biến", "scandal", "cờ bạc"]
-      }
+      keywords: finalKeywords
     };
 
     await fetch(url, {
@@ -557,7 +661,14 @@ export async function pushDataToFirebase(customSyncCode = null) {
         accessories: petState.accessories || {
           unlockedItems: ["sunglasses", "laurel"],
           equippedHead: null
-        }
+        },
+        knowledgeSeeds: petState.knowledgeSeeds ?? 0,
+        customQuotes: Array.isArray(petState.customQuotes) ? petState.customQuotes : [],
+        isWilted: Boolean(petState.isWilted),
+        evolutionStage: petState.evolutionStage || (
+          (petState.currentStreak ?? petState.streakDays ?? 1) >= 21 ? "flowering" :
+          (petState.currentStreak ?? petState.streakDays ?? 1) >= 4 ? "growing" : "seedling"
+        )
       })
     });
 
@@ -644,6 +755,10 @@ export async function pullDataFromFirebase(customSyncCode = null) {
       if (petSource.mode) pet.mode = petSource.mode;
       if (petSource.accessories) pet.accessories = petSource.accessories;
       if (petSource.lastPokeEnergyTime) pet.lastPokeEnergyTime = petSource.lastPokeEnergyTime;
+      if (petSource.knowledgeSeeds !== undefined) pet.knowledgeSeeds = petSource.knowledgeSeeds;
+      if (petSource.customQuotes !== undefined && Array.isArray(petSource.customQuotes)) pet.customQuotes = petSource.customQuotes;
+      if (petSource.isWilted !== undefined) pet.isWilted = Boolean(petSource.isWilted);
+      if (petSource.evolutionStage) pet.evolutionStage = petSource.evolutionStage;
       await chrome.storage.local.set({ pet_state: pet });
     }
 

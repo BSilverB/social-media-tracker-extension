@@ -1690,7 +1690,11 @@ function updatePetBanner() {
       mode: "default",
       accessories: { unlockedItems: [], equipped: { head: null, body: null } },
       puppetPhotos: {},
-      aiSprites: {}
+      aiSprites: {},
+      knowledgeSeeds: 0,
+      customQuotes: [],
+      isWilted: false,
+      evolutionStage: "seedling"
     };
     const mode = pet.mode || "default";
     const accessories = pet.accessories || { unlockedItems: [], equipped: { head: null, body: null } };
@@ -1698,6 +1702,10 @@ function updatePetBanner() {
 
     const avatarEl = document.getElementById("popup-pet-avatar");
     const moodEl = document.getElementById("popup-pet-mood-badge");
+    const stageEl = document.getElementById("popup-pet-stage-badge");
+    const wiltedEl = document.getElementById("popup-pet-wilted-badge");
+    const seedsEl = document.getElementById("popup-banner-seeds");
+    const seedsBadgeEl = document.getElementById("popup-seeds-badge");
     const barEl = document.getElementById("popup-pet-energy-bar");
     const textEl = document.getElementById("popup-pet-energy-text");
     const streakEl = document.getElementById("popup-streak-days");
@@ -1705,9 +1713,34 @@ function updatePetBanner() {
     const energy = pet.energy ?? 100;
     const mood = energy >= 70 ? "happy" : energy >= 40 ? "neutral" : "sad";
     const streak = pet.currentStreak ?? pet.streakDays ?? 0;
+    const stage = pet.evolutionStage || (streak >= 21 ? "flowering" : (streak >= 4 ? "growing" : "seedling"));
+    const seeds = pet.knowledgeSeeds || 0;
 
     if (streakEl) streakEl.textContent = streak;
     if (textEl) textEl.textContent = `${energy}%`;
+    if (seedsEl) seedsEl.textContent = seeds;
+    if (seedsBadgeEl) seedsBadgeEl.textContent = `${seeds} Hạt`;
+
+    if (wiltedEl) {
+      wiltedEl.style.display = pet.isWilted ? "inline-block" : "none";
+    }
+
+    if (stageEl) {
+      if (stage === "flowering") {
+        stageEl.textContent = "🌸 Nở hoa (21+ ngày)";
+        stageEl.style.background = "rgba(245,158,11,0.25)";
+        stageEl.style.color = "#FBBF24";
+      } else if (stage === "growing") {
+        stageEl.textContent = "🌿 Trưởng thành (4+ ngày)";
+        stageEl.style.background = "rgba(16,185,129,0.2)";
+        stageEl.style.color = "#34D399";
+      } else {
+        stageEl.textContent = "🌱 Mầm non (1-3 ngày)";
+        stageEl.style.background = "rgba(6,182,212,0.2)";
+        stageEl.style.color = "#67E8F9";
+      }
+    }
+
     if (barEl) {
       barEl.style.width = `${energy}%`;
       barEl.style.background = energy >= 70
@@ -1731,6 +1764,13 @@ function updatePetBanner() {
 
     if (!avatarEl) return;
 
+    // Hào quang aura layer theo stage
+    const auraStyle = stage === "flowering"
+      ? "box-shadow: 0 0 12px rgba(245,158,11,0.8); border: 2px solid #F59E0B;"
+      : stage === "growing"
+      ? "box-shadow: 0 0 8px rgba(16,185,129,0.7); border: 1.5px solid #10B981;"
+      : "border: 1.5px solid #fff;";
+
     // Phụ kiện SVG layer cho Puppet / AI
     const puppetAccessory = equippedHead === "sunglasses"
       ? `<div style="position:absolute; top:7px; left:50%; transform:translateX(-50%); width:22px; height:8px; pointer-events:none; z-index:3;">
@@ -1747,14 +1787,19 @@ function updatePetBanner() {
       const puppetImgs = pet.puppetPhotos || {};
       const faceImg = puppetImgs[mood] || puppetImgs.happy || puppetImgs.neutral;
       const bodyColor = mood === "happy" ? "#8B5CF6" : mood === "sad" ? "#475569" : "#06B6D4";
-      const filterStyle = (mood === "sad" && !puppetImgs.sad) ? "filter: grayscale(0.55);" : "";
+      const filterStyle = pet.isWilted
+        ? "filter: grayscale(0.4) sepia(0.3);"
+        : (mood === "sad" && !puppetImgs.sad ? "filter: grayscale(0.55);" : "");
 
       const faceHtml = faceImg
-        ? `<img src="${faceImg}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;border:1.5px solid #fff;${filterStyle}" alt="Pet">`
-        : `<div style="width:24px;height:24px;border-radius:50%;background:#8B5CF6;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;">👤</div>`;
+        ? `<img src="${faceImg}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;${auraStyle};${filterStyle}" alt="Pet">`
+        : `<div style="width:24px;height:24px;border-radius:50%;background:#8B5CF6;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;${auraStyle}">👤</div>`;
+
+      const wiltedMark = pet.isWilted ? `<span style="position:absolute;bottom:0;left:0;font-size:9px;">🍂</span>` : "";
 
       avatarEl.innerHTML = `
         <div style="position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; width:34px; height:34px;">
+          ${wiltedMark}
           <div style="margin-bottom:-5px; z-index:2; position:relative;">
             ${faceHtml}
             ${puppetAccessory}
@@ -1774,9 +1819,12 @@ function updatePetBanner() {
     // 2. CHẾ ĐỘ AI GENERATED: Tráo đổi 3 Sprite AI biểu cảm
     if (mode === "ai_generated" && pet.aiSprites && (pet.aiSprites[mood] || pet.aiSprites.happy)) {
       const spriteUri = pet.aiSprites[mood] || pet.aiSprites.happy;
+      const filterStyle = pet.isWilted ? "filter: grayscale(0.4) sepia(0.3);" : "";
+      const wiltedMark = pet.isWilted ? `<span style="position:absolute;bottom:0;left:0;font-size:9px;">🍂</span>` : "";
       avatarEl.innerHTML = `
-        <div style="position:relative; width:34px; height:34px; display:flex; align-items:center; justify-content:center; border-radius:6px; overflow:visible;">
-          <img src="${spriteUri}" style="width:100%; height:100%; object-fit:contain; border-radius:6px;" alt="AI Pet ${mood}">
+        <div style="position:relative; width:34px; height:34px; display:flex; align-items:center; justify-content:center; border-radius:6px; overflow:visible; ${auraStyle}">
+          ${wiltedMark}
+          <img src="${spriteUri}" style="width:100%; height:100%; object-fit:contain; border-radius:6px; ${filterStyle}" alt="AI Pet ${mood}">
           ${puppetAccessory}
         </div>
       `;
@@ -1785,8 +1833,15 @@ function updatePetBanner() {
 
     // 3. CHẾ ĐỘ DEFAULT: Mầm cây Sprout SVG
     const potColor = mood === "happy" ? "#8B5CF6" : mood === "sad" ? "#475569" : "#06B6D4";
-    const leafColor = mood === "happy" ? "#10B981" : mood === "sad" ? "#94A3B8" : "#34D399";
-    const flower = mood === "happy" ? `<circle cx="17" cy="4" r="3.5" fill="#F43F5E" /><circle cx="17" cy="4" r="1.5" fill="#FBBF24" />` : "";
+    const leafColor = pet.isWilted ? "#EAB308" : (mood === "happy" ? "#10B981" : mood === "sad" ? "#94A3B8" : "#34D399");
+    
+    let flower = "";
+    if (stage === "flowering") {
+      flower = `<circle cx="17" cy="4" r="4.2" fill="#F59E0B" /><circle cx="17" cy="4" r="2" fill="#FEF08A" />`;
+    } else if (mood === "happy" && !pet.isWilted) {
+      flower = `<circle cx="17" cy="4" r="3.5" fill="#F43F5E" /><circle cx="17" cy="4" r="1.5" fill="#FBBF24" />`;
+    }
+
     const eyes = mood === "happy"
       ? `<path d="M 11 20 Q 13 17 15 20" stroke="#0F172A" stroke-width="1.6" fill="none"/><path d="M 19 20 Q 21 17 23 20" stroke="#0F172A" stroke-width="1.6" fill="none"/>`
       : mood === "sad"
@@ -1812,6 +1867,133 @@ function updatePetBanner() {
       </svg>
     `;
   });
+}
+
+// ─── Điều Khiển Kho Hạt Giống Tri Thức & Câu Nói Truyền Cảm Hứng ────────────
+function setupKnowledgeAndQuotesControls() {
+  const btnFeed = document.getElementById("btn-feed-pet-seed");
+  const quotesList = document.getElementById("custom-quotes-list");
+  const inputNewQuote = document.getElementById("input-new-custom-quote");
+  const btnAddQuote = document.getElementById("btn-add-custom-quote");
+  const btnPresetPartner = document.getElementById("btn-apply-quotes-partner");
+  const btnPresetGoal = document.getElementById("btn-apply-quotes-goal");
+
+  // 1. Cho Pet ăn hạt mầm
+  if (btnFeed) {
+    btnFeed.onclick = () => {
+      chrome.storage.local.get(["pet_state"], (res) => {
+        const pet = res.pet_state || {};
+        const currentSeeds = pet.knowledgeSeeds || 0;
+        if (currentSeeds <= 0) {
+          showDevToast("⚠️ Bạn chưa có hạt mầm nào! Hãy xem video học tập ≥ 80% để nhận hạt.");
+          return;
+        }
+        pet.knowledgeSeeds = currentSeeds - 1;
+        pet.energy = Math.min(100, (pet.energy || 0) + 15);
+        pet.isWilted = false;
+        pet.mood = pet.energy >= 70 ? "happy" : pet.energy >= 40 ? "neutral" : "sad";
+        chrome.storage.local.set({ pet_state: pet }, () => {
+          updatePetBanner();
+          renderQuotesList();
+          showDevToast("🌱 Đã cho Pet ăn! +15⚡ năng lượng và phục hồi mầm xanh tươi tốt!");
+        });
+      });
+    };
+  }
+
+  // 2. Render danh sách câu khích lệ
+  function renderQuotesList() {
+    if (!quotesList) return;
+    chrome.storage.local.get(["pet_state"], (res) => {
+      const pet = res.pet_state || {};
+      const quotes = Array.isArray(pet.customQuotes) ? pet.customQuotes : [];
+      if (quotes.length === 0) {
+        quotesList.innerHTML = `<div style="font-size:10px; color:var(--text-muted); font-style:italic;">Chưa có câu nói nào. Chọn mẫu gợi ý hoặc tự nhập câu mới phía dưới.</div>`;
+        return;
+      }
+      quotesList.innerHTML = quotes.map((q, idx) => `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:4px 8px;">
+          <span style="font-size:11px; color:#F1F5F9; flex:1;">"${q}"</span>
+          <button type="button" class="btn-delete-quote" data-idx="${idx}" style="background:none; border:none; color:#EF4444; font-size:12px; cursor:pointer; padding:0 4px;" title="Xóa">✕</button>
+        </div>
+      `).join("");
+
+      quotesList.querySelectorAll(".btn-delete-quote").forEach((btn) => {
+        btn.onclick = (e) => {
+          const idx = parseInt(e.currentTarget.getAttribute("data-idx"), 10);
+          quotes.splice(idx, 1);
+          pet.customQuotes = quotes;
+          chrome.storage.local.set({ pet_state: pet }, () => {
+            renderQuotesList();
+            showDevToast("✓ Đã xóa câu nói.");
+          });
+        };
+      });
+    });
+  }
+
+  // 3. Thêm câu nói mới
+  if (btnAddQuote && inputNewQuote) {
+    btnAddQuote.onclick = () => {
+      const val = inputNewQuote.value.trim();
+      if (!val) return;
+      chrome.storage.local.get(["pet_state"], (res) => {
+        const pet = res.pet_state || {};
+        const quotes = Array.isArray(pet.customQuotes) ? [...pet.customQuotes] : [];
+        if (quotes.length >= 5) {
+          showDevToast("⚠️ Tối đa 5 câu nói truyền cảm hứng!");
+          return;
+        }
+        quotes.push(val);
+        pet.customQuotes = quotes;
+        chrome.storage.local.set({ pet_state: pet }, () => {
+          inputNewQuote.value = "";
+          renderQuotesList();
+          showDevToast("✓ Đã thêm câu nói truyền cảm hứng mới!");
+        });
+      });
+    };
+  }
+
+  // 4. Mẫu Người Thương
+  if (btnPresetPartner) {
+    btnPresetPartner.onclick = () => {
+      const partnerPresets = [
+        "Anh hứa hôm nay hoàn thành mục tiêu cơ mà! 💖",
+        "Cố lên bạn ơi, người ta đang đợi bạn đấy! ✨",
+        "Đừng lướt vô thức nữa, làm xong việc sớm rồi về với tớ nhé! 🌸"
+      ];
+      chrome.storage.local.get(["pet_state"], (res) => {
+        const pet = res.pet_state || {};
+        pet.customQuotes = partnerPresets;
+        chrome.storage.local.set({ pet_state: pet }, () => {
+          renderQuotesList();
+          showDevToast("💖 Đã áp dụng mẫu câu Người Thương!");
+        });
+      });
+    };
+  }
+
+  // 5. Mẫu Mục Tiêu Lớn
+  if (btnPresetGoal) {
+    btnPresetGoal.onclick = () => {
+      const goalPresets = [
+        "Kỷ luật hôm nay là tự do ngày mai! 🎯",
+        "Tập trung cho tương lai rực rỡ, không bỏ cuộc! 🚀",
+        "Mỗi phút xao nhãng đang lùi xa mục tiêu của bạn! 🔥"
+      ];
+      chrome.storage.local.get(["pet_state"], (res) => {
+        const pet = res.pet_state || {};
+        pet.customQuotes = goalPresets;
+        chrome.storage.local.set({ pet_state: pet }, () => {
+          renderQuotesList();
+          showDevToast("🎯 Đã áp dụng mẫu câu Mục Tiêu Lớn!");
+        });
+      });
+    };
+  }
+
+  renderQuotesList();
 }
 
 // Điều khiển Tủ Đồ Phụ Kiện (Wardrobe)
@@ -2190,6 +2372,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupPomodoroControls();
   setupPetControls();
   setupWardrobeControls();
+  setupKnowledgeAndQuotesControls();
   setupReflectionButton();
   setupDashboardButton();
   setupPopupAuditLogToggle();
@@ -2209,6 +2392,7 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     if (changes.petState || changes.pet_state || changes.petConfig || changes.petAccessories) {
       updatePetBanner();
       setupWardrobeControls();
+      setupKnowledgeAndQuotesControls();
     }
   }
 });
