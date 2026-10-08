@@ -3,15 +3,21 @@
  * Quản lý: Intentional Entry Modal, Hard Friction Overlay với ảnh cá nhân & giữ Space 3s
  */
 
+import { saveDayData } from "../../utils/storage.js";
+
 export class FrictionManager {
   /**
    * @param {object} opts
    * @param {Function} opts.getConfig       - () => { masterGoal, emotionalAnchorImage }
    * @param {Function} opts.onToast         - (msg, ms) => void
+   * @param {object} opts.dayData
+   * @param {string} opts.platformKey
    */
-  constructor({ getConfig, onToast }) {
+  constructor({ getConfig, onToast, dayData, platformKey }) {
     this.getConfig = getConfig;
     this.onToast = onToast || (() => {});
+    this.dayData = dayData || null;
+    this.platformKey = platformKey || "youtube";
 
     this._isOverlayActive = false;
     this._spaceHoldStart = null;
@@ -720,9 +726,13 @@ export class FrictionManager {
     const countdownEl = overlay.querySelector("#mindful-breath-countdown");
     const instructEl = overlay.querySelector("#mindful-breath-instruction");
 
-    // Xử lý đóng tab
+    // Xử lý đóng tab (Vượt qua cám dỗ)
     if (btnCloseTab) {
       btnCloseTab.onclick = () => {
+        if (this.dayData?.temptation) {
+          this.dayData.temptation.resistedCount = (this.dayData.temptation.resistedCount || 0) + 1;
+          saveDayData(this.dayData, this.platformKey, true);
+        }
         try {
           window.close();
         } catch (_) {}
@@ -800,6 +810,10 @@ export class FrictionManager {
             overlay.style.display = "none";
             window.removeEventListener("wheel", this._preventScroll);
             window.removeEventListener("touchmove", this._preventScroll);
+            if (this.dayData?.temptation) {
+              this.dayData.temptation.succumbedCount = (this.dayData.temptation.succumbedCount || 0) + 1;
+              saveDayData(this.dayData, this.platformKey, false);
+            }
             if (this.petEngine) this.petEngine.reward(5, "breathing_complete");
             this.onToast("🔑 Bạn đã hít thở sâu, hồi phục +5⚡ và nhận 5 lượt lướt hoãn!", 4000);
           };

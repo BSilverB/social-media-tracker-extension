@@ -2,13 +2,20 @@
  * Mindful Social Media Tracker - Popup Dashboard Controller
  */
 
-// Lấy ngày hiện tại theo giờ địa phương dạng YYYY-MM-DD
+import {
+  getFirebaseSyncSettings,
+  saveFirebaseSyncSettings,
+  testFirebaseConnection,
+  pushConfigToFirebase
+} from "./src/utils/firebase-service.js";
+
+// Lấy ngày hiện tại theo giờ địa phương dạng stats_YYYY-MM-DD
 function getTodayKey() {
   const d = new Date();
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return `stats_${year}-${month}-${day}`;
 }
 
 // Chuyển đổi giây sang định dạng giờ phút giây thân thiện
@@ -96,17 +103,18 @@ function updateDashboard() {
     const fbFeedsThresh = thresh.facebook?.feeds || { m1: 20, m2: 40, m3: 60 };
     const fbReelsThresh = thresh.facebook?.reels || { m1: 15, m2: 30, m3: 45 };
 
-    const ytSummary = data.youtube?.summary || { activeTimeSeconds: 0, passiveTimeSeconds: 0, reloadCount: 0 };
-    const ytShorts = data.youtube?.shortVideos || { totalSwipes: 0, validViews: 0, loopViews: 0 };
-    const ytLong = data.youtube?.longVideos || { totalWatched: 0, impulsiveCount: 0, details: [] };
-    const ytMusic = data.youtube?.musicVideos || { totalWatched: 0, totalDurationSeconds: 0 };
+    const ytSummary = data.youtube?.summary || { activeSeconds: 0, passiveSeconds: 0, reloadCount: 0 };
+    const ytShorts = data.youtube?.shorts || { totalSwipes: 0, validViews: 0, loopViews: 0 };
+    const ytLong = data.youtube?.longVideos || { totalWatched: 0, usefulCount: 0, impulsiveCount: 0 };
+    const ytMusic = data.youtube?.musicVideos || { totalWatched: 0, durationSeconds: 0 };
 
-    const fbSummary = data.facebook?.summary || { activeTimeSeconds: 0, passiveTimeSeconds: 0, reloadCount: 0, feedPostsScrolled: 0 };
+    const fbSummary = data.facebook?.summary || { activeSeconds: 0, passiveSeconds: 0, reloadCount: 0 };
+    const fbFeed = data.facebook?.feed || { feedPostsScrolled: 0, feedPostsRead: 0 };
     const fbReels = data.facebook?.reels || { totalSwipes: 0, validViews: 0, loopViews: 0 };
 
     // --- 1. RENDER YOUTUBE PANEL ---
-    const ytActive = ytSummary.activeTimeSeconds || 0;
-    const ytPassive = ytSummary.passiveTimeSeconds || 0;
+    const ytActive = ytSummary.activeSeconds || 0;
+    const ytPassive = ytSummary.passiveSeconds || 0;
     const ytTotalTime = ytActive + ytPassive;
     const ytActiveRatio = ytTotalTime > 0 ? Math.round((ytActive / ytTotalTime) * 100) : 0;
 
@@ -156,17 +164,17 @@ function updateDashboard() {
     const ytMusicCount = document.getElementById("yt-music-count");
     const ytMusicTime = document.getElementById("yt-music-time");
     if (ytMusicCount) ytMusicCount.innerText = ytMusic.totalWatched || 0;
-    if (ytMusicTime) ytMusicTime.innerText = formatDuration(ytMusic.totalDurationSeconds || 0);
+    if (ytMusicTime) ytMusicTime.innerText = formatDuration(ytMusic.durationSeconds || 0);
 
     // Danh sách Video dài gần đây
-    renderRecentVideos(ytLong.details || []);
+    renderRecentVideos(data.watchedVideos || []);
 
     // Phân loại danh mục
-    renderCategories(ytLong.details || []);
+    renderCategories(data.watchedVideos || []);
 
     // --- 2. RENDER FACEBOOK PANEL ---
-    const fbActive = fbSummary.activeTimeSeconds || 0;
-    const fbPassive = fbSummary.passiveTimeSeconds || 0;
+    const fbActive = fbSummary.activeSeconds || 0;
+    const fbPassive = fbSummary.passiveSeconds || 0;
     const fbTotalTime = fbActive + fbPassive;
     const fbActiveRatio = fbTotalTime > 0 ? Math.round((fbActive / fbTotalTime) * 100) : 0;
 
@@ -175,7 +183,7 @@ function updateDashboard() {
     document.getElementById("fb-ratio-bar").style.width = `${fbActiveRatio}%`;
     document.getElementById("fb-reload-badge").innerText = `F5/Home: ${fbSummary.reloadCount || 0}`;
 
-    const fbFeedCount = fbSummary.feedPostsScrolled || 0;
+    const fbFeedCount = fbFeed.feedPostsScrolled || 0;
     document.getElementById("fb-feed-scrolled").innerText = fbFeedCount;
     document.getElementById("fb-reloads").innerText = fbSummary.reloadCount || 0;
 
@@ -207,10 +215,16 @@ function updateDashboard() {
     );
 
     // --- 3. RENDER TỔNG QUAN PANEL ---
-    const totalActive = ytActive + fbActive;
-    const totalReloads = (ytSummary.reloadCount || 0) + (fbSummary.reloadCount || 0);
-    const totalSwipes = ytShortsTotal + fbReelsTotal;
-    const totalLoops = (ytShorts.loopViews || 0) + (fbReels.loopViews || 0);
+    const ttSummary = data.tiktok?.summary || { activeSeconds: 0, passiveSeconds: 0, reloadCount: 0 };
+    const ttShorts = data.tiktok?.shorts || { totalSwipes: 0, loopViews: 0 };
+    const ttActive = ttSummary.activeSeconds || 0;
+    const ttSwipes = ttShorts.totalSwipes || 0;
+    const ttLoops = ttShorts.loopViews || 0;
+
+    const totalActive = ytActive + fbActive + ttActive;
+    const totalReloads = (ytSummary.reloadCount || 0) + (fbSummary.reloadCount || 0) + (ttSummary.reloadCount || 0);
+    const totalSwipes = ytShortsTotal + fbReelsTotal + ttSwipes;
+    const totalLoops = (ytShorts.loopViews || 0) + (fbReels.loopViews || 0) + ttLoops;
 
     document.getElementById("total-active-time").innerText = formatDuration(totalActive);
     document.getElementById("total-reloads").innerText = totalReloads;
@@ -288,19 +302,42 @@ function setupResetButton() {
   btn.addEventListener("click", () => {
     if (confirm("Bạn có chắc chắn muốn đặt lại (xóa) toàn bộ số liệu thống kê của ngày hôm nay?")) {
       const todayKey = getTodayKey();
-      const emptyPayload = {};
-      emptyPayload[todayKey] = {
+      const dateStr = todayKey.replace("stats_", "");
+      const emptyDayData = {
+        date: dateStr,
         youtube: {
-          summary: { activeTimeSeconds: 0, passiveTimeSeconds: 0, reloadCount: 0 },
-          longVideos: { totalWatched: 0, impulsiveCount: 0, details: [] },
-          shortVideos: { totalSwipes: 0, validViews: 0, loopViews: 0 }
+          summary: { activeSeconds: 0, passiveSeconds: 0, reloadCount: 0 },
+          shorts: { totalSwipes: 0, validViews: 0, impulsiveCount: 0, loopViews: 0 },
+          longVideos: { totalWatched: 0, usefulCount: 0, impulsiveCount: 0 },
+          musicVideos: { totalWatched: 0, durationSeconds: 0 }
         },
         facebook: {
-          summary: { activeTimeSeconds: 0, passiveTimeSeconds: 0, reloadCount: 0, feedPostsScrolled: 0 },
-          longVideos: { totalWatched: 0, impulsiveCount: 0, details: [] },
-          reels: { totalSwipes: 0, validViews: 0, loopViews: 0 }
-        }
+          summary: { activeSeconds: 0, passiveSeconds: 0, reloadCount: 0 },
+          feed: { feedPostsScrolled: 0, feedPostsRead: 0 },
+          reels: { totalSwipes: 0, validViews: 0, impulsiveCount: 0, loopViews: 0 },
+          longVideos: { totalWatched: 0, usefulCount: 0, impulsiveCount: 0 }
+        },
+        tiktok: {
+          summary: { activeSeconds: 0, passiveSeconds: 0, reloadCount: 0 },
+          shorts: { totalSwipes: 0, validViews: 0, impulsiveCount: 0, loopViews: 0 }
+        },
+        hourly: Array.from({ length: 24 }, (_, h) => ({
+          hour: h,
+          swipes: 0,
+          longVideos: 0,
+          feedScrolled: 0,
+          reloads: 0,
+          activeSeconds: 0
+        })),
+        temptation: { resistedCount: 0, succumbedCount: 0 },
+        watchedVideos: [],
+        unmatchedQueue: [],
+        reflection: { lesson1: "", lesson2: "", rating: 5, aiFeedback: "", submittedAt: null },
+        petEnergyEndOfDay: 100
       };
+
+      const emptyPayload = {};
+      emptyPayload[todayKey] = emptyDayData;
 
       chrome.storage.local.set(emptyPayload, () => {
         updateDashboard();
@@ -425,13 +462,12 @@ function setupSettings() {
   const refMin = document.getElementById("cfg-reflection-minute");
 
   // Nạp cấu hình & API Key đã lưu
-  chrome.storage.local.get(["app_config", "gemini_api_key"], (result) => {
+  chrome.storage.local.get(["app_config"], (result) => {
     const config = result.app_config || {};
     const thresholds = config.thresholds || {};
     const ytThresh = thresholds.youtube || {};
     const fbThresh = thresholds.facebook || {};
-    const oldShorts = thresholds.shorts || {};
-    const oldLong = thresholds.long || {};
+    const ttThresh = thresholds.tiktok || {};
 
     // Khởi tạo các dropdown giờ 24h cho Bedtime & Reflection
     if (bedtimeEnabled) bedtimeEnabled.checked = config.bedtime?.enabled !== false;
@@ -444,30 +480,30 @@ function setupSettings() {
       el?.addEventListener("change", updateBedtimeSummaryHint);
     });
 
-    if (geminiKeyInput && result.gemini_api_key) {
-      geminiKeyInput.value = result.gemini_api_key;
+    if (geminiKeyInput && config.geminiApiKey) {
+      geminiKeyInput.value = config.geminiApiKey;
     }
 
     // Điền YouTube
-    if (ytShortsM1) ytShortsM1.value = ytThresh.shorts?.m1 ?? oldShorts.m1 ?? 15;
-    if (ytShortsM2) ytShortsM2.value = ytThresh.shorts?.m2 ?? oldShorts.m2 ?? 30;
-    if (ytShortsM3) ytShortsM3.value = ytThresh.shorts?.m3 ?? oldShorts.m3 ?? 45;
-    if (ytLongM1) ytLongM1.value = ytThresh.long?.m1 ?? oldLong.m1 ?? 3;
-    if (ytLongM2) ytLongM2.value = ytThresh.long?.m2 ?? oldLong.m2 ?? 5;
-    if (ytLongM3) ytLongM3.value = ytThresh.long?.m3 ?? oldLong.m3 ?? 8;
+    if (ytShortsM1) ytShortsM1.value = ytThresh.shorts?.m1 ?? 15;
+    if (ytShortsM2) ytShortsM2.value = ytThresh.shorts?.m2 ?? 30;
+    if (ytShortsM3) ytShortsM3.value = ytThresh.shorts?.m3 ?? 45;
+    if (ytLongM1) ytLongM1.value = ytThresh.long?.m1 ?? 3;
+    if (ytLongM2) ytLongM2.value = ytThresh.long?.m2 ?? 5;
+    if (ytLongM3) ytLongM3.value = ytThresh.long?.m3 ?? 8;
 
     // Điền Facebook
-    if (fbReelsM1) fbReelsM1.value = fbThresh.reels?.m1 ?? oldShorts.m1 ?? 15;
-    if (fbReelsM2) fbReelsM2.value = fbThresh.reels?.m2 ?? oldShorts.m2 ?? 30;
-    if (fbReelsM3) fbReelsM3.value = fbThresh.reels?.m3 ?? oldShorts.m3 ?? 45;
+    if (fbReelsM1) fbReelsM1.value = fbThresh.reels?.m1 ?? 15;
+    if (fbReelsM2) fbReelsM2.value = fbThresh.reels?.m2 ?? 30;
+    if (fbReelsM3) fbReelsM3.value = fbThresh.reels?.m3 ?? 45;
     if (fbFeedsM1) fbFeedsM1.value = fbThresh.feeds?.m1 ?? 20;
     if (fbFeedsM2) fbFeedsM2.value = fbThresh.feeds?.m2 ?? 40;
     if (fbFeedsM3) fbFeedsM3.value = fbThresh.feeds?.m3 ?? 60;
-    if (fbLongM1) fbLongM1.value = fbThresh.long?.m1 ?? oldLong.m1 ?? 2;
-    if (fbLongM2) fbLongM2.value = fbThresh.long?.m2 ?? oldLong.m2 ?? 4;
-    if (fbLongM3) fbLongM3.value = fbThresh.long?.m3 ?? oldLong.m3 ?? 6;
+    if (fbLongM1) fbLongM1.value = fbThresh.long?.m1 ?? 2;
+    if (fbLongM2) fbLongM2.value = fbThresh.long?.m2 ?? 4;
+    if (fbLongM3) fbLongM3.value = fbThresh.long?.m3 ?? 6;
 
-    if (goalInput) goalInput.value = config.masterGoal || "";
+    if (goalInput) goalInput.value = config.masterGoal || "Muốn trở thành phiên bản tốt hơn để gặp người ấy";
 
     // Pomodoro
     if (pomodoroEnabled) pomodoroEnabled.checked = config.pomodoro?.enabled || false;
@@ -475,8 +511,9 @@ function setupSettings() {
     if (pomodoroBreak) pomodoroBreak.value = config.pomodoro?.breakMinutes ?? 5;
 
     // Keywords - mỗi từ 1 dòng
-    if (keywordsInput && Array.isArray(config.targetKeywords)) {
-      keywordsInput.value = config.targetKeywords.join("\n");
+    const targetKws = config.keywords?.target || config.targetKeywords || [];
+    if (keywordsInput && Array.isArray(targetKws)) {
+      keywordsInput.value = targetKws.join("\n");
     }
 
     if (config.emotionalAnchorImage) {
@@ -525,6 +562,58 @@ function setupSettings() {
     geminiStatus.textContent = msg;
     geminiStatus.style.color = color;
     geminiStatus.style.display = "block";
+  }
+
+  // Firebase Realtime Sync controls
+  const syncCodeInput = document.getElementById("cfg-sync-code");
+  const autoSyncCheckbox = document.getElementById("cfg-auto-sync");
+  const btnTestFirebase = document.getElementById("btn-test-firebase-sync");
+  const firebaseStatusEl = document.getElementById("firebase-sync-status");
+
+  getFirebaseSyncSettings().then((fbSettings) => {
+    if (syncCodeInput) syncCodeInput.value = fbSettings.syncCode || "";
+    if (autoSyncCheckbox) autoSyncCheckbox.checked = fbSettings.autoSync !== false;
+    if (firebaseStatusEl) {
+      if (fbSettings.lastSynced) {
+        const timeStr = new Date(fbSettings.lastSynced).toLocaleTimeString("vi-VN");
+        firebaseStatusEl.textContent = `✓ Đã đồng bộ gần nhất lúc ${timeStr}`;
+        firebaseStatusEl.style.color = "#10B981";
+      } else {
+        firebaseStatusEl.textContent = `Chưa đồng bộ (Mã: ${fbSettings.syncCode})`;
+        firebaseStatusEl.style.color = "var(--text-muted)";
+      }
+    }
+  });
+
+  if (btnTestFirebase && syncCodeInput) {
+    btnTestFirebase.addEventListener("click", async () => {
+      const code = syncCodeInput.value.trim().toUpperCase();
+      if (!code) {
+        if (firebaseStatusEl) {
+          firebaseStatusEl.textContent = "⚠️ Vui lòng nhập mã Sync Code!";
+          firebaseStatusEl.style.color = "#EF4444";
+        }
+        return;
+      }
+      if (firebaseStatusEl) {
+        firebaseStatusEl.textContent = "⏳ Đang kiểm tra kết nối tới Firebase RTDB...";
+        firebaseStatusEl.style.color = "#38BDF8";
+      }
+      btnTestFirebase.disabled = true;
+      const res = await testFirebaseConnection(code);
+      btnTestFirebase.disabled = false;
+      if (res && res.success) {
+        if (firebaseStatusEl) {
+          firebaseStatusEl.textContent = `✅ ${res.message}`;
+          firebaseStatusEl.style.color = "#10B981";
+        }
+      } else {
+        if (firebaseStatusEl) {
+          firebaseStatusEl.textContent = `❌ ${res?.error || "Không thể kết nối"}`;
+          firebaseStatusEl.style.color = "#EF4444";
+        }
+      }
+    });
   }
 
   // Tải ảnh từ file & nén qua Canvas
@@ -595,46 +684,75 @@ function setupSettings() {
       ? keywordsInput.value.split("\n").map(k => k.trim()).filter(k => k.length > 0)
       : [];
 
-    const app_config = {
-      thresholds: {
-        youtube: {
-          shorts: { m1: ytShortsM1Val, m2: ytShortsM2Val, m3: ytShortsM3Val },
-          long: { m1: ytLongM1Val, m2: ytLongM2Val, m3: ytLongM3Val }
-        },
-        facebook: {
-          reels: { m1: fbReelsM1Val, m2: fbReelsM2Val, m3: fbReelsM3Val },
-          feeds: { m1: fbFeedsM1Val, m2: fbFeedsM2Val, m3: fbFeedsM3Val },
-          long: { m1: fbLongM1Val, m2: fbLongM2Val, m3: fbLongM3Val }
-        },
-        // Fallback backward compatibility
-        shorts: { m1: ytShortsM1Val, m2: ytShortsM2Val, m3: ytShortsM3Val },
-        long: { m1: ytLongM1Val, m2: ytLongM2Val, m3: ytLongM3Val }
-      },
-      masterGoal,
-      emotionalAnchorImage,
-      targetKeywords,
-      pomodoro: {
-        enabled: pomodoroEnabled?.checked || false,
-        focusMinutes: parseInt(pomodoroFocus?.value) || 25,
-        breakMinutes: parseInt(pomodoroBreak?.value) || 5
-      },
-      bedtime: {
-        enabled: bedtimeEnabled ? bedtimeEnabled.checked : true,
-        start: getTimePickerValue(bedStartHour, bedStartMin, "22:30"),
-        end: getTimePickerValue(bedEndHour, bedEndMin, "05:00")
-      },
-      reflection: {
-        reminderTime: getTimePickerValue(refHour, refMin, "22:00")
-      }
-    };
+    const syncCodeVal = syncCodeInput ? syncCodeInput.value.trim().toUpperCase() : "";
+    const autoSyncVal = autoSyncCheckbox ? autoSyncCheckbox.checked : true;
 
-    chrome.storage.local.set({ app_config, gemini_api_key: geminiKey }, () => {
-      chrome.runtime.sendMessage({ type: "UPDATE_REFLECTION_ALARM" }).catch(() => {});
-      const toast = document.getElementById("cfg-save-toast");
-      if (toast) {
-        toast.style.display = "block";
-        setTimeout(() => { toast.style.display = "none"; }, 2500);
-      }
+    chrome.storage.local.get(["app_config"], (cfgRes) => {
+      const existingCfg = cfgRes.app_config || {};
+      const finalSyncCode = syncCodeVal || existingCfg.syncCode || "MF-8924";
+      const finalAutoSync = autoSyncCheckbox ? autoSyncVal : (existingCfg.auto_sync !== false);
+      const app_config = {
+        syncCode: finalSyncCode,
+        auto_sync: finalAutoSync,
+        masterGoal,
+        leisureQuotaMinutes: existingCfg.leisureQuotaMinutes || 45,
+        geminiApiKey: geminiKey,
+        emotionalAnchorImage,
+        thresholds: {
+          youtube: {
+            shorts: { m1: ytShortsM1Val, m2: ytShortsM2Val, m3: ytShortsM3Val },
+            long: { m1: ytLongM1Val, m2: ytLongM2Val, m3: ytLongM3Val }
+          },
+          facebook: {
+            reels: { m1: fbReelsM1Val, m2: fbReelsM2Val, m3: fbReelsM3Val },
+            feeds: { m1: fbFeedsM1Val, m2: fbFeedsM2Val, m3: fbFeedsM3Val },
+            long: { m1: fbLongM1Val, m2: fbLongM2Val, m3: fbLongM3Val }
+          },
+          tiktok: {
+            shorts: { m1: 15, m2: 30, m3: 45 }
+          }
+        },
+        pomodoro: {
+          enabled: pomodoroEnabled?.checked || false,
+          focusMinutes: parseInt(pomodoroFocus?.value) || 25,
+          breakMinutes: parseInt(pomodoroBreak?.value) || 5
+        },
+        bedtime: {
+          enabled: bedtimeEnabled ? bedtimeEnabled.checked : true,
+          start: getTimePickerValue(bedStartHour, bedStartMin, "22:30"),
+          end: getTimePickerValue(bedEndHour, bedEndMin, "05:00")
+        },
+        reflection: {
+          reminderTime: getTimePickerValue(refHour, refMin, "22:00")
+        },
+        keywords: {
+          target: targetKeywords,
+          leisure: existingCfg.keywords?.leisure || ["hài", "game", "gaming", "streamer", "vlog", "ca nhạc", "nấu ăn"],
+          distraction: existingCfg.keywords?.distraction || ["drama", "bóc phốt", "hóng biến", "scandal", "cờ bạc", "giật gân"]
+        },
+        localPreferences: existingCfg.localPreferences || {
+          hudPosition: { x: 20, y: 80 },
+          grayscaleMode: "threshold_m2"
+        }
+      };
+
+      saveFirebaseSyncSettings({
+        syncCode: finalSyncCode,
+        autoSync: finalAutoSync
+      });
+
+      chrome.storage.local.set({ app_config }, () => {
+        // Đẩy cấu hình lên Firebase tức thì
+        pushConfigToFirebase(app_config).catch((err) => {
+          console.warn("[Popup] Lỗi đẩy cấu hình tức thì:", err);
+        });
+        chrome.runtime.sendMessage({ type: "UPDATE_REFLECTION_ALARM" }).catch(() => {});
+        const toast = document.getElementById("cfg-save-toast");
+        if (toast) {
+          toast.style.display = "block";
+          setTimeout(() => { toast.style.display = "none"; }, 2500);
+        }
+      });
     });
   });
 }
@@ -806,10 +924,10 @@ function setupPetControls() {
   const btnGenerateAiPet = document.getElementById("btn-generate-ai-pet");
   const petAiStatus = document.getElementById("pet-ai-status");
 
-  // Nạp cấu hình Pet hiện tại
-  chrome.storage.local.get(["petConfig"], (res) => {
-    const config = res.petConfig || { mode: "default", uploadedImageBase64: "", uploadedPuppetImages: {}, aiSprites: {} };
-    const currentMode = config.mode || "default";
+  // Nạp cấu hình Pet hiện tại từ pet_state
+  chrome.storage.local.get(["pet_state"], (res) => {
+    const petState = res.pet_state || { mode: "default", puppetPhotos: {}, aiSprites: {} };
+    const currentMode = petState.mode || "default";
 
     // Chọn đúng radio
     radioModes.forEach(r => {
@@ -819,14 +937,14 @@ function setupPetControls() {
     togglePetModeUI(currentMode);
 
     // Hiển thị 3 ảnh Puppet theo từng cảm xúc
-    const puppetImgs = config.uploadedPuppetImages || {};
-    renderPuppetSlotPreview("happy", puppetImgs.happy || config.uploadedImageBase64);
+    const puppetImgs = petState.puppetPhotos || {};
+    renderPuppetSlotPreview("happy", puppetImgs.happy);
     renderPuppetSlotPreview("neutral", puppetImgs.neutral);
     renderPuppetSlotPreview("sad", puppetImgs.sad);
 
     // Hiển thị 3 sprite AI nếu đã có
-    if (config.aiSprites) {
-      renderSpritePreviews(config.aiSprites);
+    if (petState.aiSprites) {
+      renderSpritePreviews(petState.aiSprites);
     }
   });
 
@@ -865,10 +983,10 @@ function setupPetControls() {
       const selectedMode = e.target.value;
       togglePetModeUI(selectedMode);
 
-      chrome.storage.local.get(["petConfig"], (res) => {
-        const petConfig = res.petConfig || {};
-        petConfig.mode = selectedMode;
-        chrome.storage.local.set({ petConfig }, () => {
+      chrome.storage.local.get(["pet_state"], (res) => {
+        const petState = res.pet_state || {};
+        petState.mode = selectedMode;
+        chrome.storage.local.set({ pet_state: petState }, () => {
           updatePetBanner();
         });
       });
@@ -921,17 +1039,12 @@ function setupPetControls() {
         cropFileToCircleBase64(file, (croppedBase64) => {
           renderPuppetSlotPreview(mood, croppedBase64);
 
-          chrome.storage.local.get(["petConfig"], (res) => {
-            const petConfig = res.petConfig || { mode: "puppet" };
-            if (!petConfig.uploadedPuppetImages) petConfig.uploadedPuppetImages = {};
-            petConfig.uploadedPuppetImages[mood] = croppedBase64;
+          chrome.storage.local.get(["pet_state"], (res) => {
+            const petState = res.pet_state || { mode: "puppet" };
+            if (!petState.puppetPhotos) petState.puppetPhotos = {};
+            petState.puppetPhotos[mood] = croppedBase64;
 
-            // Nếu là Happy hoặc chưa có ảnh chính thì cập nhật uploadedImageBase64 làm fallback
-            if (mood === "happy" || !petConfig.uploadedImageBase64) {
-              petConfig.uploadedImageBase64 = croppedBase64;
-            }
-
-            chrome.storage.local.set({ petConfig }, () => {
+            chrome.storage.local.set({ pet_state: petState }, () => {
               updatePetBanner();
             });
           });
@@ -949,15 +1062,12 @@ function setupPetControls() {
 
       renderPuppetSlotPreview(slot, null);
 
-      chrome.storage.local.get(["petConfig"], (res) => {
-        const petConfig = res.petConfig || {};
-        if (petConfig.uploadedPuppetImages && petConfig.uploadedPuppetImages[slot]) {
-          delete petConfig.uploadedPuppetImages[slot];
+      chrome.storage.local.get(["pet_state"], (res) => {
+        const petState = res.pet_state || {};
+        if (petState.puppetPhotos && petState.puppetPhotos[slot]) {
+          delete petState.puppetPhotos[slot];
         }
-        if (slot === "happy") {
-          petConfig.uploadedImageBase64 = petConfig.uploadedPuppetImages?.neutral || petConfig.uploadedPuppetImages?.sad || "";
-        }
-        chrome.storage.local.set({ petConfig }, () => {
+        chrome.storage.local.set({ pet_state: petState }, () => {
           updatePetBanner();
         });
       });
@@ -971,14 +1081,13 @@ function setupPetControls() {
       if (!file) return;
 
       cropFileToCircleBase64(file, (croppedBase64) => {
-        chrome.storage.local.get(["petConfig"], (res) => {
-          const petConfig = res.petConfig || { mode: "puppet" };
-          petConfig.uploadedImageBase64 = croppedBase64;
-          if (!petConfig.uploadedPuppetImages) petConfig.uploadedPuppetImages = {};
-          petConfig.uploadedPuppetImages.happy = croppedBase64;
+        chrome.storage.local.get(["pet_state"], (res) => {
+          const petState = res.pet_state || { mode: "puppet" };
+          if (!petState.puppetPhotos) petState.puppetPhotos = {};
+          petState.puppetPhotos.happy = croppedBase64;
           renderPuppetSlotPreview("happy", croppedBase64);
 
-          chrome.storage.local.set({ petConfig }, () => {
+          chrome.storage.local.set({ pet_state: petState }, () => {
             updatePetBanner();
           });
         });
@@ -989,13 +1098,16 @@ function setupPetControls() {
   // Nút Tạo Avatar AI Chibi
   if (btnGenerateAiPet) {
     btnGenerateAiPet.addEventListener("click", () => {
-      chrome.storage.local.get(["petConfig", "gemini_api_key"], (res) => {
-        const petConfig = res.petConfig || {};
-        if (!petConfig.uploadedImageBase64) {
+      chrome.storage.local.get(["pet_state", "app_config"], (res) => {
+        const petState = res.pet_state || {};
+        const config = res.app_config || {};
+        const puppetImgs = petState.puppetPhotos || {};
+        const fallbackImg = puppetImgs.happy || puppetImgs.neutral || puppetImgs.sad;
+        if (!fallbackImg) {
           showPetAiStatus("⚠️ Vui lòng chọn ảnh trước khi tạo Avatar AI.", "#EF4444");
           return;
         }
-        if (!res.gemini_api_key) {
+        if (!config.geminiApiKey) {
           showPetAiStatus("⚠️ Vui lòng nhập Gemini API Key ở ô phía trên trước.", "#EF4444");
           return;
         }
@@ -1005,7 +1117,7 @@ function setupPetControls() {
 
         chrome.runtime.sendMessage({
           type: "GENERATE_AI_PET_SPRITES",
-          imageBase64: petConfig.uploadedImageBase64
+          imageBase64: fallbackImg
         }, (resp) => {
           btnGenerateAiPet.disabled = false;
           if (resp && resp.ok && resp.sprites) {
@@ -1047,10 +1159,18 @@ function setupPetControls() {
 
 // ─── Render Linh vật Pet & Focus Streak (Hỗ trợ 3 Chế Độ & Phụ Kiện) ─────────
 function updatePetBanner() {
-  chrome.storage.local.get(["petState", "pet_state", "petConfig", "petAccessories"], (res) => {
-    const pet = res.petState || res.pet_state || { energy: 100, mood: "happy", currentStreak: 0, streakDays: 0 };
-    const config = res.petConfig || { mode: "default" };
-    const accessories = res.petAccessories || { unlockedItems: [], equipped: { head: null, body: null } };
+  chrome.storage.local.get(["pet_state"], (res) => {
+    const pet = res.pet_state || {
+      energy: 100,
+      mood: "happy",
+      currentStreak: 0,
+      mode: "default",
+      accessories: { unlockedItems: [], equipped: { head: null, body: null } },
+      puppetPhotos: {},
+      aiSprites: {}
+    };
+    const mode = pet.mode || "default";
+    const accessories = pet.accessories || { unlockedItems: [], equipped: { head: null, body: null } };
     const equippedHead = accessories.equipped?.head || null;
 
     const avatarEl = document.getElementById("popup-pet-avatar");
@@ -1100,9 +1220,9 @@ function updatePetBanner() {
       : "";
 
     // 1. CHẾ ĐỘ PUPPET: Ghép mặt tròn vào body chibi
-    if (config.mode === "puppet") {
-      const puppetImgs = config.uploadedPuppetImages || {};
-      const faceImg = puppetImgs[mood] || config.uploadedImageBase64;
+    if (mode === "puppet") {
+      const puppetImgs = pet.puppetPhotos || {};
+      const faceImg = puppetImgs[mood] || puppetImgs.happy || puppetImgs.neutral;
       const bodyColor = mood === "happy" ? "#8B5CF6" : mood === "sad" ? "#475569" : "#06B6D4";
       const filterStyle = (mood === "sad" && !puppetImgs.sad) ? "filter: grayscale(0.55);" : "";
 
@@ -1129,8 +1249,8 @@ function updatePetBanner() {
     }
 
     // 2. CHẾ ĐỘ AI GENERATED: Tráo đổi 3 Sprite AI biểu cảm
-    if (config.mode === "ai_generated" && config.aiSprites && (config.aiSprites[mood] || config.aiSprites.happy)) {
-      const spriteUri = config.aiSprites[mood] || config.aiSprites.happy;
+    if (mode === "ai_generated" && pet.aiSprites && (pet.aiSprites[mood] || pet.aiSprites.happy)) {
+      const spriteUri = pet.aiSprites[mood] || pet.aiSprites.happy;
       avatarEl.innerHTML = `
         <div style="position:relative; width:34px; height:34px; display:flex; align-items:center; justify-content:center; border-radius:6px; overflow:visible;">
           <img src="${spriteUri}" style="width:100%; height:100%; object-fit:contain; border-radius:6px;" alt="AI Pet ${mood}">
@@ -1177,12 +1297,12 @@ function setupWardrobeControls() {
   const btnSunglasses = document.getElementById("btn-toggle-sunglasses");
   const btnLaurel = document.getElementById("btn-toggle-laurel");
 
-  chrome.storage.local.get(["petState", "pet_state", "petAccessories"], (res) => {
-    const pet = res.petState || res.pet_state || {};
-    const streak = pet.streakDays ?? pet.currentStreak ?? 0;
+  chrome.storage.local.get(["pet_state"], (res) => {
+    const pet = res.pet_state || {};
+    const streak = pet.currentStreak ?? pet.streakDays ?? 0;
     if (badgeStreak) badgeStreak.textContent = `🔥 ${streak} ngày`;
 
-    const accessories = res.petAccessories || { unlockedItems: [], equipped: { head: null, body: null } };
+    const accessories = pet.accessories || { unlockedItems: [], equipped: { head: null, body: null } };
     const unlocked = new Set(accessories.unlockedItems || []);
     if (streak >= 3) unlocked.add("sunglasses");
     if (streak >= 7) unlocked.add("laurel");
@@ -1219,7 +1339,8 @@ function setupWardrobeControls() {
         btnSunglasses.onclick = () => {
           accessories.equipped = accessories.equipped || {};
           accessories.equipped.head = equippedHead === "sunglasses" ? null : "sunglasses";
-          chrome.storage.local.set({ petAccessories: accessories }, () => {
+          pet.accessories = accessories;
+          chrome.storage.local.set({ pet_state: pet }, () => {
             setupWardrobeControls();
             updatePetBanner();
           });
@@ -1256,7 +1377,8 @@ function setupWardrobeControls() {
         btnLaurel.onclick = () => {
           accessories.equipped = accessories.equipped || {};
           accessories.equipped.head = equippedHead === "laurel" ? null : "laurel";
-          chrome.storage.local.set({ petAccessories: accessories }, () => {
+          pet.accessories = accessories;
+          chrome.storage.local.set({ pet_state: pet }, () => {
             setupWardrobeControls();
             updatePetBanner();
           });
@@ -1336,12 +1458,12 @@ function setupDevMode() {
   if (!toggleDev || !tabDevBtn) return;
 
   // 1. Kiểm tra trạng thái lưu
-  chrome.storage.local.get(["dev_mode_enabled", "petState", "pet_state"], (res) => {
+  chrome.storage.local.get(["dev_mode_enabled", "pet_state"], (res) => {
     const isEnabled = !!res.dev_mode_enabled;
     toggleDev.checked = isEnabled;
     tabDevBtn.style.display = isEnabled ? "flex" : "none";
 
-    const pet = res.petState || res.pet_state || { energy: 100 };
+    const pet = res.pet_state || { energy: 100 };
     if (devEnergyVal) devEnergyVal.innerText = `${pet.energy ?? 100}%`;
     if (sliderEnergy) sliderEnergy.value = pet.energy ?? 100;
   });
@@ -1363,14 +1485,14 @@ function setupDevMode() {
     if (sliderEnergy) sliderEnergy.value = val;
     if (devEnergyVal) devEnergyVal.innerText = `${val}%`;
 
-    chrome.storage.local.get(["petState", "pet_state"], (res) => {
-      const state = res.petState || res.pet_state || { energy: 100, mood: "happy" };
+    chrome.storage.local.get(["pet_state"], (res) => {
+      const state = res.pet_state || { energy: 100, mood: "happy" };
       state.energy = val;
       if (val >= 50) state.mood = "happy";
       else if (val >= 20) state.mood = "neutral";
       else state.mood = "sad";
 
-      chrome.storage.local.set({ petState: state, pet_state: state }, () => {
+      chrome.storage.local.set({ pet_state: state }, () => {
         updatePetBanner();
         showDevToast(`⚡ Đã chỉnh năng lượng Pet: ${val}%`);
       });

@@ -65,6 +65,38 @@ export function matchKeywords(text, targetKeywords = []) {
   };
 }
 
+// Phân loại video theo cấu trúc 3 tầng từ khóa chuẩn: "goal" | "leisure" | "distraction" | "unclassified"
+export function classifyByKeywords(title = "", keywordsConfig = {}) {
+  if (!title || typeof title !== "string") return "unclassified";
+  const lower = title.toLowerCase();
+
+  const targetList = Array.isArray(keywordsConfig.target) ? keywordsConfig.target : [];
+  for (const kw of targetList) {
+    if (kw && lower.includes(kw.trim().toLowerCase())) return "goal";
+  }
+
+  const distractionList = Array.isArray(keywordsConfig.distraction) ? keywordsConfig.distraction : [];
+  for (const kw of distractionList) {
+    if (kw && lower.includes(kw.trim().toLowerCase())) return "distraction";
+  }
+
+  const leisureList = Array.isArray(keywordsConfig.leisure) ? keywordsConfig.leisure : [];
+  for (const kw of leisureList) {
+    if (kw && lower.includes(kw.trim().toLowerCase())) return "leisure";
+  }
+
+  // Fallback qua Category Rules nếu chưa có trong danh sách từ khóa tĩnh
+  const cat = categorizeText(title);
+  if (cat === "Giáo dục & Công nghệ" || cat === "Phát triển bản thân" || cat === "Tài chính & Đầu tư") {
+    return "goal";
+  }
+  if (cat === "Giải trí & Đời sống") {
+    return "leisure";
+  }
+
+  return "unclassified";
+}
+
 // Đánh giá toàn diện nội dung video (Danh mục + Từ khóa mục tiêu)
 export function evaluateVideoContent(title, targetKeywords = []) {
   const category = categorizeText(title);

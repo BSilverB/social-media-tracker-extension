@@ -4,8 +4,8 @@
  * bắt F5/Reload, click Home, và quản lý Active Time.
  */
 
-import { saveDayData, formatTimeShort } from "../../utils/storage.js";
-import { categorizeText } from "./keyword-filter.js";
+import { saveDayData, formatTimeShort, recordHourlyMetrics } from "../../utils/storage.js";
+import { categorizeText, classifyByKeywords } from "./keyword-filter.js";
 
 const IDLE_THRESHOLD_MS = 30000;
 
@@ -13,9 +13,10 @@ export class Tracker {
   /**
    * @param {object} opts
    * @param {object} opts.dayData     - Tham chiếu đến dayData chia sẻ
-   * @param {string} opts.platformKey - "youtube" | "facebook"
+   * @param {string} opts.platformKey - "youtube" | "facebook" | "tiktok"
    * @param {boolean} opts.isYT
    * @param {boolean} opts.isFB
+   * @param {object} opts.keywordsConfig
    * @param {Function} opts.onUpdate  - Callback gọi khi dữ liệu thay đổi
    * @param {Function} opts.onAction  - Callback trigger friction check
    * @param {Function} opts.getFocusMode - () => "music" | "study"
@@ -26,6 +27,7 @@ export class Tracker {
     platformKey,
     isYT,
     isFB,
+    keywordsConfig,
     onUpdate,
     onAction,
     onImpulsive,
@@ -38,6 +40,7 @@ export class Tracker {
     this.platformKey = platformKey;
     this.isYT = isYT;
     this.isFB = isFB;
+    this.keywordsConfig = keywordsConfig || {};
     this.onUpdate = onUpdate || (() => {});
     this.onAction = onAction || (() => {});
     this.onImpulsive = onImpulsive || (() => {});
@@ -92,9 +95,10 @@ export class Tracker {
       if (!document.hidden) {
         const timeSinceActivity = Date.now() - this._lastUserActivity;
         if (timeSinceActivity <= IDLE_THRESHOLD_MS) {
-          this.dayData[this.platformKey].summary.activeTimeSeconds++;
+          this.dayData[this.platformKey].summary.activeSeconds++;
+          recordHourlyMetrics(this.dayData, { activeSeconds: 1 });
         } else {
-          this.dayData[this.platformKey].summary.passiveTimeSeconds++;
+          this.dayData[this.platformKey].summary.passiveSeconds++;
         }
         this.onUpdate();
         saveDayData(this.dayData, this.platformKey, false);
@@ -117,6 +121,7 @@ export class Tracker {
 
       if (isReload) {
         this.dayData[this.platformKey].summary.reloadCount++;
+        recordHourlyMetrics(this.dayData, { reloads: 1 });
         this._registerReloadAttempt();
         saveDayData(this.dayData, this.platformKey, true);
       }
@@ -171,11 +176,13 @@ export class Tracker {
 
       if (this.isYT && target.closest("a#logo, ytd-topbar-logo-renderer, a[href='/']")) {
         this.dayData.youtube.summary.reloadCount++;
+        recordHourlyMetrics(this.dayData, { reloads: 1 });
         this._registerReloadAttempt();
         this.onUpdate();
         saveDayData(this.dayData, "youtube", false);
       } else if (this.isFB && target.closest("a[aria-label='Facebook'], svg[aria-label='Facebook'], a[href='/?ref=logo'], a[href='/']")) {
         this.dayData.facebook.summary.reloadCount++;
+        recordHourlyMetrics(this.dayData, { reloads: 1 });
         this._registerReloadAttempt();
         this.onUpdate();
         saveDayData(this.dayData, "facebook", false);
@@ -187,16 +194,26 @@ export class Tracker {
 
   handleYTShorts(shortId) {
     if (!shortId || shortId === this._currentYTShortId) return;
-    this._currentYTShortId = shortId;
 
-    this.dayData.youtube.shortVideos.totalSwipes++;
+    // Nếu chuyển video trước 2s -> tính là lướt bốc đồng (impulsive < 2s)
+    if (this._shortViewTimer) {
+      clearTimeout(this._shortViewTimer);
+      this._shortViewTimer = null;
+      if (this._currentYTShortId) {
+        this.dayData.youtube.shorts.impulsiveCount++;
+      }
+    }
+
+    this._currentYTShortId = shortId;
+    this.dayData.youtube.shorts.totalSwipes++;
+    recordHourlyMetrics(this.dayData, { swipes: 1 });
     this.onUpdate();
     saveDayData(this.dayData, "youtube", false);
     this.onAction();
 
-    if (this._shortViewTimer) clearTimeout(this._shortViewTimer);
     this._shortViewTimer = setTimeout(() => {
-      this.dayData.youtube.shortVideos.validViews++;
+      this.dayData.youtube.shorts.validViews++;
+      this._shortViewTimer = null;
       this.onUpdate();
       saveDayData(this.dayData, "youtube", false);
     }, 2000);
@@ -343,10 +360,10 @@ export class Tracker {
     if (isFocusMusic && isMusic) {
       if (watched >= 5) {
         if (!this.dayData.youtube.musicVideos) {
-          this.dayData.youtube.musicVideos = { totalWatched: 0, totalDurationSeconds: 0 };
+          this.dayData.youtube.musicVideos = { totalWatched: 0, durationSeconds: 0 };
         }
         this.dayData.youtube.musicVideos.totalWatched++;
-        this.dayData.youtube.musicVideos.totalDurationSeconds += watched;
+        this.dayData.youtube.musicVideos.durationSeconds = (this.dayData.youtube.musicVideos.durationSeconds || 0) + watched;
         saveDayData(this.dayData, "youtube", true);
         this.onUpdate();
         this.onAction();
@@ -362,27 +379,29 @@ export class Tracker {
     if (watched >= 3) {
       const watchPct = duration > 0 ? (watched / duration) : 0;
 
-      // Completion Rate Logic (Giai đoạn 3)
+      // Completion Rate Logic
       const isUseful = watchPct >= 0.80 || watched >= 180;          // >= 80% hoặc >= 3 phút đủ thời lượng dài
       const isImpulsive = duration > 60 && watchPct < 0.15;         // < 15% và video > 1 phút
 
-      let category = categorizeText(this._currentYTLongTitle);
+      const category = classifyByKeywords(this._currentYTLongTitle, this.keywordsConfig);
 
       const record = {
         id: this._currentYTLongId,
         title: this._currentYTLongTitle || "Không rõ tiêu đề",
+        channel: this._currentYTLongChannel || "Không rõ kênh",
+        platform: "youtube",
+        category, // "goal" | "leisure" | "distraction" | "unclassified"
         watchedSeconds: watched,
         durationSeconds: duration,
-        completionPct: duration > 0 ? Math.round(watchPct * 100) : null,
-        category,
-        isImpulsive,
-        isUseful,
-        isImpulsiveSkip: isImpulsive,
-        timestamp: Date.now()
+        isCompletion: Boolean(isUseful),
+        timestamp: Date.now(),
+        userOverridden: false
       };
 
       const lv = this.dayData.youtube.longVideos;
       lv.totalWatched++;
+      recordHourlyMetrics(this.dayData, { longVideos: 1 });
+
       if (isImpulsive) {
         lv.impulsiveCount++;
         this.onImpulsive("impulsive_video");
@@ -392,21 +411,22 @@ export class Tracker {
         this.onUseful("useful_video");
       }
 
-      lv.details.unshift(record);
-      if (lv.details.length > 50) lv.details.pop();
+      if (!this.dayData.watchedVideos) this.dayData.watchedVideos = [];
+      this.dayData.watchedVideos.unshift(record);
+      if (this.dayData.watchedVideos.length > 50) this.dayData.watchedVideos.pop();
 
-      // Lưu lại các video chưa phân loại được vào unclassifiedVideos để tổng hợp gửi AI cuối ngày
-      if (category === "Khác" && this._currentYTLongTitle) {
-        if (!this.dayData.unclassifiedVideos) this.dayData.unclassifiedVideos = [];
-        const exists = this.dayData.unclassifiedVideos.some(u => u.title === this._currentYTLongTitle);
+      // Lưu lại các video chưa phân loại vào unmatchedQueue để AI xử lý lúc 22h00
+      if (category === "unclassified" && this._currentYTLongTitle) {
+        if (!this.dayData.unmatchedQueue) this.dayData.unmatchedQueue = [];
+        const exists = this.dayData.unmatchedQueue.some(u => u.title === this._currentYTLongTitle);
         if (!exists) {
-          this.dayData.unclassifiedVideos.push({
+          this.dayData.unmatchedQueue.push({
             id: this._currentYTLongId,
             title: this._currentYTLongTitle,
             watchedSeconds: watched,
             timestamp: Date.now()
           });
-          if (this.dayData.unclassifiedVideos.length > 25) this.dayData.unclassifiedVideos.shift();
+          if (this.dayData.unmatchedQueue.length > 25) this.dayData.unmatchedQueue.shift();
         }
       }
 
@@ -415,12 +435,10 @@ export class Tracker {
       this.onAction();
 
       // ─── LỚP 2: GEMINI API FALLBACK NẾU LỚP 1 KHÔNG NHẬN DIỆN ĐƯỢC ──────────
-      // Chỉ áp dụng với video dài xem >= 15s hoặc xem >= 80% (Tiết kiệm token Free Tier)
-      if (category === "Khác" && this._currentYTLongTitle && (watched >= 15 || watchPct >= 0.80)) {
+      if (category === "unclassified" && this._currentYTLongTitle && (watched >= 15 || watchPct >= 0.80)) {
         const videoIdToClassify = this._currentYTLongId;
         const videoTitleToClassify = this._currentYTLongTitle;
 
-        // 1. Đưa vào hàng đợi tạm unmatched_queue cho cơ chế tự tiến hóa lúc 22h00
         if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
           chrome.runtime.sendMessage({
             type: "ADD_UNMATCHED_VIDEO",
@@ -429,8 +447,6 @@ export class Tracker {
             watchedSeconds: watched
           }).catch(() => {});
 
-          // 2. Gửi yêu cầu phân loại ngầm sang Background Service Worker
-          // (Background kiểm tra Token Cache trước, không tốn token nếu đã phân loại)
           chrome.runtime.sendMessage({
             type: "GEMINI_CLASSIFY",
             videoId: videoIdToClassify,
@@ -439,12 +455,11 @@ export class Tracker {
             isShort: false
           }, (res) => {
             if (res && res.category && res.category !== "Khác") {
-              // Cập nhật lại bản ghi trong chi tiết video
-              record.category = res.category;
+              record.category = (res.category === "Giáo dục & Công nghệ" || res.category === "Phát triển bản thân") ? "goal" : "leisure";
               record.relevanceScore = res.relevanceScore;
 
-              if (res.relevanceScore >= 60 && !record.isUseful) {
-                record.isUseful = true;
+              if (res.relevanceScore >= 60 && !record.isCompletion) {
+                record.isCompletion = true;
                 lv.usefulCount = (lv.usefulCount || 0) + 1;
                 this.onUseful("gemini_reclassified_useful");
               }
@@ -468,16 +483,25 @@ export class Tracker {
 
   handleFBReel(reelId) {
     if (!reelId || reelId === this._currentFBReelId) return;
-    this._currentFBReelId = reelId;
 
+    if (this._fbReelTimer) {
+      clearTimeout(this._fbReelTimer);
+      this._fbReelTimer = null;
+      if (this._currentFBReelId) {
+        this.dayData.facebook.reels.impulsiveCount++;
+      }
+    }
+
+    this._currentFBReelId = reelId;
     this.dayData.facebook.reels.totalSwipes++;
+    recordHourlyMetrics(this.dayData, { swipes: 1 });
     this.onUpdate();
     saveDayData(this.dayData, "facebook", false);
     this.onAction();
 
-    if (this._fbReelTimer) clearTimeout(this._fbReelTimer);
     this._fbReelTimer = setTimeout(() => {
       this.dayData.facebook.reels.validViews++;
+      this._fbReelTimer = null;
       this.onUpdate();
       saveDayData(this.dayData, "facebook", false);
     }, 2000);
@@ -485,7 +509,20 @@ export class Tracker {
     this._setupShortLoopTracker("facebook");
   }
 
-  // ─── Loop Tracker (Shorts / Reels) ───────────────────────────────────────
+  // ─── TikTok Tracking ───────────────────────────────────────────────────────
+
+  handleTikTokSwipe() {
+    if (!this.dayData.tiktok) return;
+    this.dayData.tiktok.shorts.totalSwipes++;
+    recordHourlyMetrics(this.dayData, { swipes: 1 });
+    this.onUpdate();
+    saveDayData(this.dayData, "tiktok", false);
+    this.onAction();
+
+    this._setupShortLoopTracker("tiktok");
+  }
+
+  // ─── Loop Tracker (Shorts / Reels / TikTok) ───────────────────────────────────────
 
   _setupShortLoopTracker(platform) {
     setTimeout(() => {
@@ -506,7 +543,7 @@ export class Tracker {
       const onTimeUpdate = () => {
         const isOnPage = platform === "youtube"
           ? location.pathname.startsWith("/shorts")
-          : location.pathname.includes("/reel");
+          : (platform === "tiktok" ? location.hostname.includes("tiktok.com") : location.pathname.includes("/reel"));
 
         if (!isOnPage) {
           video.removeEventListener("timeupdate", onTimeUpdate);
@@ -514,7 +551,9 @@ export class Tracker {
         }
         if (video.duration > 0 && lastTime > video.duration * 0.8 && video.currentTime < 1.0) {
           if (platform === "youtube") {
-            this.dayData.youtube.shortVideos.loopViews++;
+            this.dayData.youtube.shorts.loopViews++;
+          } else if (platform === "tiktok") {
+            if (this.dayData.tiktok) this.dayData.tiktok.shorts.loopViews++;
           } else {
             this.dayData.facebook.reels.loopViews++;
           }
@@ -527,7 +566,9 @@ export class Tracker {
       video.addEventListener("timeupdate", onTimeUpdate);
       video.addEventListener("ended", () => {
         if (platform === "youtube") {
-          this.dayData.youtube.shortVideos.loopViews++;
+          this.dayData.youtube.shorts.loopViews++;
+        } else if (platform === "tiktok") {
+          if (this.dayData.tiktok) this.dayData.tiktok.shorts.loopViews++;
         } else {
           this.dayData.facebook.reels.loopViews++;
         }
@@ -549,7 +590,11 @@ export class Tracker {
           const sig = el.getAttribute("data-post-sig");
           if (sig && !this._seenFBPosts.has(sig)) {
             this._seenFBPosts.add(sig);
-            this.dayData.facebook.summary.feedPostsScrolled++;
+            if (!this.dayData.facebook.feed) {
+              this.dayData.facebook.feed = { feedPostsScrolled: 0, feedPostsRead: 0 };
+            }
+            this.dayData.facebook.feed.feedPostsScrolled++;
+            recordHourlyMetrics(this.dayData, { feedScrolled: 1 });
             this.onUpdate();
             saveDayData(this.dayData, "facebook", false);
             this._feedScrollObserver.unobserve(el);

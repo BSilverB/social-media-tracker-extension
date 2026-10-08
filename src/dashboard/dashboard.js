@@ -34,7 +34,7 @@ async function loadData() {
   return new Promise((resolve) => {
     chrome.storage.local.get(null, (items) => {
       allStorageData = items || {};
-      const dateKeyRegex = /^\d{4}-\d{2}-\d{2}$/;
+      const dateKeyRegex = /^stats_\d{4}-\d{2}-\d{2}$/;
       const records = [];
 
       for (const [key, val] of Object.entries(allStorageData)) {
@@ -42,26 +42,22 @@ async function loadData() {
 
         const yt = val.youtube || {};
         const fb = val.facebook || {};
+        const dateStr = key.replace("stats_", "");
 
-        const ytActive = yt.summary?.activeTimeSeconds || 0;
-        const ytPassive = yt.summary?.passiveTimeSeconds || 0;
+        const ytActive = yt.summary?.activeSeconds ?? yt.summary?.activeTimeSeconds ?? 0;
+        const ytPassive = yt.summary?.passiveSeconds ?? yt.summary?.passiveTimeSeconds ?? 0;
         const ytReloads = yt.summary?.reloadCount || 0;
-        const ytShorts = yt.shortVideos?.totalSwipes || 0;
+        const ytShorts = yt.shorts?.totalSwipes ?? yt.shortVideos?.totalSwipes ?? 0;
         const ytLongWatched = yt.longVideos?.totalWatched || 0;
-        const ytImpulsive = yt.longVideos?.impulsiveCount || 0;
-        const ytUseful = (yt.longVideos?.details || []).filter(
-          (d) => d.isUseful || (d.completionPct && d.completionPct >= 80)
-        ).length;
+        const ytUseful = yt.longVideos?.usefulCount ?? 0;
 
-        const fbActive = fb.summary?.activeTimeSeconds || 0;
-        const fbPassive = fb.summary?.passiveTimeSeconds || 0;
+        const fbActive = fb.summary?.activeSeconds ?? fb.summary?.activeTimeSeconds ?? 0;
+        const fbPassive = fb.summary?.passiveSeconds ?? fb.summary?.passiveTimeSeconds ?? 0;
         const fbReloads = fb.summary?.reloadCount || 0;
-        const fbFeedScrolled = fb.summary?.feedPostsScrolled || 0;
+        const fbFeedScrolled = fb.feed?.feedPostsScrolled ?? fb.summary?.feedPostsScrolled ?? 0;
         const fbReels = fb.reels?.totalSwipes || 0;
         const fbLongWatched = fb.longVideos?.totalWatched || 0;
-        const fbUseful = (fb.longVideos?.details || []).filter(
-          (d) => d.isUseful || (d.completionPct && d.completionPct >= 80)
-        ).length;
+        const fbUseful = fb.longVideos?.usefulCount ?? 0;
 
         const activeSec = ytActive + fbActive;
         const passiveSec = ytPassive + fbPassive;
@@ -72,7 +68,7 @@ async function loadData() {
         const usefulPct = totalLong > 0 ? Math.round((totalUseful / totalLong) * 100) : 0;
 
         records.push({
-          date: key,
+          date: dateStr,
           activeSec,
           passiveSec,
           totalSec: activeSec + passiveSec,

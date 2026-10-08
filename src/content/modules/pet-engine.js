@@ -39,28 +39,30 @@ export class PetEngine {
 
   _initFromStorage() {
     if (typeof chrome !== "undefined" && chrome.storage?.local) {
-      chrome.storage.local.get([
-        "petState",
-        "pet_state",
-        "petConfig",
-        "petAccessories",
-        "lastPokeEnergyTime"
-      ], (res) => {
-        const state = res.petState || res.pet_state || {};
+      chrome.storage.local.get(["pet_state"], (res) => {
+        const state = res.pet_state || {};
         this.energy = state.energy ?? 100;
         this.currentStreak = state.currentStreak ?? state.streakDays ?? 0;
         this.streakDays = this.currentStreak;
+        this.mode = state.mode || "default";
         this._updateMoodFromEnergy();
 
-        if (res.petConfig) {
-          this.config = Object.assign({}, this.config, res.petConfig);
+        if (state.puppetPhotos) {
+          this.config.uploadedPuppetImages = {
+            happy: state.puppetPhotos.happyImage || "",
+            neutral: state.puppetPhotos.neutralImage || "",
+            sad: state.puppetPhotos.sadImage || ""
+          };
+          this.config.uploadedImageBase64 = state.puppetPhotos.happyImage || "";
+        }
+        if (state.aiSprites) {
+          this.config.aiSprites = state.aiSprites;
+        }
+        if (state.lastPokeEnergyTime) {
+          this.lastPokeEnergyTime = state.lastPokeEnergyTime;
         }
 
-        if (res.lastPokeEnergyTime) {
-          this.lastPokeEnergyTime = res.lastPokeEnergyTime;
-        }
-
-        this._syncAccessories(res.petAccessories);
+        this._syncAccessories(state.accessories);
         this.render();
       });
 
@@ -68,28 +70,33 @@ export class PetEngine {
         if (namespace !== "local") return;
 
         let needsRender = false;
-        if (changes.petState || changes.pet_state) {
-          const newState = (changes.petState || changes.pet_state).newValue || {};
+        if (changes.pet_state) {
+          const newState = changes.pet_state.newValue || {};
           this.energy = newState.energy ?? this.energy;
           this.currentStreak = newState.currentStreak ?? newState.streakDays ?? this.currentStreak;
           this.streakDays = this.currentStreak;
+          this.mode = newState.mode || this.mode;
           this._updateMoodFromEnergy();
-          this._checkStreakUnlocks();
-          needsRender = true;
-        }
 
-        if (changes.petConfig) {
-          this.config = Object.assign({}, this.config, changes.petConfig.newValue || {});
-          needsRender = true;
-        }
+          if (newState.puppetPhotos) {
+            this.config.uploadedPuppetImages = {
+              happy: newState.puppetPhotos.happyImage || "",
+              neutral: newState.puppetPhotos.neutralImage || "",
+              sad: newState.puppetPhotos.sadImage || ""
+            };
+            this.config.uploadedImageBase64 = newState.puppetPhotos.happyImage || "";
+          }
+          if (newState.aiSprites) {
+            this.config.aiSprites = newState.aiSprites;
+          }
+          if (newState.accessories) {
+            this._syncAccessories(newState.accessories);
+          }
+          if (newState.lastPokeEnergyTime) {
+            this.lastPokeEnergyTime = newState.lastPokeEnergyTime;
+          }
 
-        if (changes.petAccessories) {
-          this._syncAccessories(changes.petAccessories.newValue);
           needsRender = true;
-        }
-
-        if (changes.lastPokeEnergyTime) {
-          this.lastPokeEnergyTime = changes.lastPokeEnergyTime.newValue || 0;
         }
 
         if (needsRender) this.render();
@@ -101,7 +108,10 @@ export class PetEngine {
     if (stored) {
       this.accessories = {
         unlockedItems: Array.isArray(stored.unlockedItems) ? [...stored.unlockedItems] : [],
-        equipped: Object.assign({ head: null, body: null }, stored.equipped || {})
+        equipped: {
+          head: stored.equippedHead !== undefined ? stored.equippedHead : (stored.equipped?.head || null),
+          body: null
+        }
       };
     }
     this._checkStreakUnlocks();
@@ -123,7 +133,14 @@ export class PetEngine {
     if (changed) {
       this.accessories.unlockedItems = Array.from(currentUnlocked);
       if (typeof chrome !== "undefined" && chrome.storage?.local) {
-        chrome.storage.local.set({ petAccessories: this.accessories });
+        chrome.storage.local.get(["pet_state"], (res) => {
+          const current = res.pet_state || {};
+          current.accessories = {
+            unlockedItems: this.accessories.unlockedItems,
+            equippedHead: this.accessories.equipped?.head || null
+          };
+          chrome.storage.local.set({ pet_state: current });
+        });
       }
     }
   }
@@ -545,7 +562,12 @@ export class PetEngine {
     if (canGainEnergy) {
       this.lastPokeEnergyTime = now;
       if (typeof chrome !== "undefined" && chrome.storage?.local) {
-        chrome.storage.local.set({ lastPokeEnergyTime: now });
+        chrome.storage.local.get(["pet_state"], (res) => {
+          const current = res.pet_state || {};
+          current.lastPokeEnergyTime = now;
+          current.lastActiveTimestamp = now;
+          chrome.storage.local.set({ pet_state: current });
+        });
       }
       this.reward(3, "pet_poke");
       energyBonusText = `<div style="font-size:10px; color:#10B981; font-weight:700; margin-top:2px;">+3⚡ Năng lượng phục hồi!</div>`;
@@ -631,13 +653,17 @@ export class PetEngine {
 
   _saveState() {
     if (typeof chrome !== "undefined" && chrome.storage?.local) {
-      const state = {
-        energy: this.energy,
-        mood: this.mood,
-        currentStreak: this.currentStreak,
-        streakDays: this.streakDays
-      };
-      chrome.storage.local.set({ petState: state, pet_state: state });
+      chrome.storage.local.get(["pet_state"], (res) => {
+        const current = res.pet_state || {};
+        const state = Object.assign({}, current, {
+          energy: this.energy,
+          mood: this.mood,
+          currentStreak: this.currentStreak,
+          streakDays: this.streakDays,
+          lastActiveTimestamp: Date.now()
+        });
+        chrome.storage.local.set({ pet_state: state });
+      });
     }
   }
 
@@ -728,8 +754,8 @@ export class PetEngine {
   // ─── Digital Detox: Hồi phục năng lượng khi tắt ứng dụng / rời xa MXH ───────
   checkIdleRecovery() {
     if (typeof chrome === "undefined" || !chrome.storage?.local) return;
-    chrome.storage.local.get(["lastActiveTimestamp", "petState", "pet_state"], (res) => {
-      const lastActive = res.lastActiveTimestamp;
+    chrome.storage.local.get(["lastActiveTimestamp", "pet_state"], (res) => {
+      const lastActive = res.pet_state?.lastActiveTimestamp || res.lastActiveTimestamp;
       const now = Date.now();
       if (!lastActive) {
         chrome.storage.local.set({ lastActiveTimestamp: now });

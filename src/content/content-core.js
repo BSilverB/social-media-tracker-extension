@@ -19,9 +19,10 @@ if (window.top !== window) {
 const hostname = window.location.hostname;
 const isYT = hostname.includes("youtube.com");
 const isFB = hostname.includes("facebook.com");
-if (!isYT && !isFB) throw new Error("Mindful Tracker: unsupported platform");
+const isTT = hostname.includes("tiktok.com");
+if (!isYT && !isFB && !isTT) throw new Error("Mindful Tracker: unsupported platform");
 
-const platformKey = isYT ? "youtube" : "facebook";
+const platformKey = isYT ? "youtube" : (isFB ? "facebook" : "tiktok");
 
 // ─── Hook SPA Navigation (pushState / replaceState / popstate) ───────────────
 (function hookHistory() {
@@ -116,6 +117,13 @@ function getThresholds() {
         m2: Number(thresh.facebook?.long?.m2 ?? thresh.long?.m2 ?? 4),
         m3: Number(thresh.facebook?.long?.m3 ?? thresh.long?.m3 ?? 6)
       }
+    },
+    tiktok: {
+      shorts: {
+        m1: Number(thresh.tiktok?.shorts?.m1 ?? thresh.shorts?.m1 ?? 15),
+        m2: Number(thresh.tiktok?.shorts?.m2 ?? thresh.shorts?.m2 ?? 30),
+        m3: Number(thresh.tiktok?.shorts?.m3 ?? thresh.shorts?.m3 ?? 45)
+      }
     }
   };
 }
@@ -185,7 +193,7 @@ function evaluateGrayscaleMode() {
 
   if (isYT) {
     if (location.pathname.startsWith("/shorts")) {
-      currentCount = dayData?.youtube?.shortVideos?.totalSwipes || 0;
+      currentCount = dayData?.youtube?.shorts?.totalSwipes || 0;
       m2Limit = threshData.youtube.shorts.m2;
     } else {
       currentCount = dayData?.youtube?.longVideos?.totalWatched || 0;
@@ -199,9 +207,12 @@ function evaluateGrayscaleMode() {
       currentCount = dayData?.facebook?.reels?.totalSwipes || 0;
       m2Limit = threshData.facebook.reels.m2;
     } else {
-      currentCount = dayData?.facebook?.summary?.feedPostsScrolled || 0;
+      currentCount = dayData?.facebook?.feed?.feedPostsScrolled || 0;
       m2Limit = threshData.facebook.feeds.m2;
     }
+  } else if (isTT) {
+    currentCount = dayData?.tiktok?.shorts?.totalSwipes || 0;
+    m2Limit = threshData.tiktok.shorts.m2;
   }
   const isOverM2 = currentCount >= m2Limit;
 
@@ -255,7 +266,7 @@ function onAction() {
 
   if (isYT) {
     if (location.pathname.startsWith("/shorts")) {
-      currentCount = dayData.youtube.shortVideos.totalSwipes || 0;
+      currentCount = dayData.youtube.shorts.totalSwipes || 0;
       currentLimits = threshData.youtube.shorts;
       unitLabel = "lượt Shorts";
     } else {
@@ -273,10 +284,14 @@ function onAction() {
       currentLimits = threshData.facebook.reels;
       unitLabel = "lượt Reels";
     } else {
-      currentCount = dayData.facebook.summary.feedPostsScrolled || 0;
+      currentCount = dayData.facebook.feed?.feedPostsScrolled || 0;
       currentLimits = threshData.facebook.feeds;
       unitLabel = "bài viết Feed";
     }
+  } else if (isTT) {
+    currentCount = dayData.tiktok?.shorts?.totalSwipes || 0;
+    currentLimits = threshData.tiktok.shorts;
+    unitLabel = "video TikTok";
   }
 
   // Reset cờ cảnh báo nếu count quay về 0 (xóa dữ liệu ngày)
@@ -371,6 +386,11 @@ function onRouteChanged() {
       friction.showIntentModal();
       tracker.attachFBFeedPosts();
     }
+  }
+
+  if (isTT) {
+    friction.showIntentModal();
+    tracker.handleTikTokSwipe();
   }
 
   onUpdate();
@@ -581,14 +601,14 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     }
   }
 
-  if (changes.petState?.newValue || changes.pet_state?.newValue) {
-    const newPet = changes.petState?.newValue || changes.pet_state?.newValue;
+  if (changes.pet_state?.newValue) {
+    const newPet = changes.pet_state.newValue;
     if (petEngine && newPet) {
       petEngine.energy = newPet.energy ?? petEngine.energy;
       petEngine.mood = newPet.mood ?? petEngine.mood;
       petEngine.currentStreak = newPet.currentStreak ?? petEngine.currentStreak;
       petEngine.streakDays = newPet.streakDays ?? petEngine.streakDays;
-      petEngine._renderPet();
+      petEngine.render();
       evaluateGrayscaleMode();
       onUpdate();
     }
@@ -596,7 +616,7 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
 });
 
 // ─── KHỞI TẠO ────────────────────────────────────────────────────────────────
-loadAppData(({ config, dayData: loaded, hudPosition, pomodoroState }) => {
+loadAppData(({ config, dayData: loaded, petState, pomodoroState }) => {
   appConfig = config;
   dayData = loaded;
 
@@ -607,7 +627,9 @@ loadAppData(({ config, dayData: loaded, hudPosition, pomodoroState }) => {
   // Khởi tạo Friction Manager & liên kết Pet Engine
   friction = new FrictionManager({
     getConfig: () => appConfig,
-    onToast: showToast
+    onToast: showToast,
+    dayData,
+    platformKey
   });
   friction.setPetEngine(petEngine);
 
@@ -623,6 +645,7 @@ loadAppData(({ config, dayData: loaded, hudPosition, pomodoroState }) => {
     platformKey,
     isYT,
     isFB,
+    isTT,
     getThresholds,
     getPomodoroLabel: () => pomodoroManager?.getStatusLabel() || null,
     getPomodoroActive: () => pomodoroManager?.isEnabled || false,
@@ -654,8 +677,11 @@ loadAppData(({ config, dayData: loaded, hudPosition, pomodoroState }) => {
     }
   });
 
-  if (hudPosition?.top && hudPosition?.left) {
-    hud.applyPosition(hudPosition.top, hudPosition.left);
+  const hudPos = appConfig?.localPreferences?.hudPosition;
+  if (hudPos?.top && hudPos?.left) {
+    hud.applyPosition(hudPos.top, hudPos.left);
+  } else if (hudPos?.x !== undefined && hudPos?.y !== undefined) {
+    hud.applyPosition(`${hudPos.y}px`, `${hudPos.x}px`);
   }
 
   // Khởi tạo trạng thái Focus Mode & Dev Mode từ storage
@@ -698,6 +724,7 @@ loadAppData(({ config, dayData: loaded, hudPosition, pomodoroState }) => {
     platformKey,
     isYT,
     isFB,
+    keywordsConfig: appConfig?.keywords,
     onUpdate,
     onAction,
     getFocusMode: () => (pomodoroManager?.state?.focusMode || currentFocusMode),
@@ -707,13 +734,25 @@ loadAppData(({ config, dayData: loaded, hudPosition, pomodoroState }) => {
       friction.showStudyCheckInModal(
         videoTitle,
         (intent) => {
-          if (!dayData.studyVideoLogs) dayData.studyVideoLogs = [];
-          dayData.studyVideoLogs.push({
-            id: videoId,
-            title: videoTitle,
-            userIntent: intent,
-            timestamp: Date.now()
-          });
+          if (!dayData.watchedVideos) dayData.watchedVideos = [];
+          let targetVid = dayData.watchedVideos.find(v => v.id === videoId);
+          if (targetVid) {
+            targetVid.category = "goal";
+            targetVid.userOverridden = true;
+          } else {
+            dayData.watchedVideos.unshift({
+              id: videoId,
+              title: videoTitle,
+              channel: "",
+              platform: "youtube",
+              category: "goal",
+              watchedSeconds: 15,
+              durationSeconds: 0,
+              isCompletion: true,
+              timestamp: Date.now(),
+              userOverridden: true
+            });
+          }
           saveDayData(dayData, "youtube", true);
           petEngine?.reward(5, "study_intent_declared");
           showToast(`🎯 Mục tiêu: "${intent}". Đã thưởng +5⚡!`, 3500);

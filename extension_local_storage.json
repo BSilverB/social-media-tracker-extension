@@ -1,0 +1,208 @@
+1. Key Dữ liệu Thống kê theo Ngày: "stats_YYYY-MM-DD" (ví dụ: "stats_2026-10-08")
+{
+  "date": "2026-10-08",
+
+  // 1. NỀN TẢNG YOUTUBE (Nằm trực tiếp ở root)
+  "youtube": {
+    "summary": {
+      "activeSeconds": 0,         // Thời gian tab YouTube active và có tương tác (giây)[cite: 2, 4]
+      "passiveSeconds": 0,        // Thời gian phát nền/không tương tác[cite: 2, 4]
+      "reloadCount": 0            // Số lần ấn F5 hoặc click Logo YouTube[cite: 2, 4]
+    },
+    "shorts": {
+      "totalSwipes": 0,           // Tổng số lần quẹt Shorts[cite: 2, 3]
+      "validViews": 0,            // Số Shorts dừng xem >= 2s[cite: 1, 3]
+      "impulsiveCount": 0,        // Số Shorts lướt qua < 2s (lướt bốc đồng)[cite: 1, 3]
+      "loopViews": 0              // Số lần xem lặp lại video ngắn[cite: 1, 3]
+    },
+    "longVideos": {
+      "totalWatched": 0,          // Tổng số video dài (/watch) đã click mở[cite: 2, 3]
+      "usefulCount": 0,           // Số video xem >= 80% thời lượng (hoặc >= 3 phút)[cite: 1, 4]
+      "impulsiveCount": 0         // Số video xem < 15% thời lượng rồi tắt ngang[cite: 1, 4]
+    },
+    "musicVideos": {              // Video nghe nhạc trong phiên Pomodoro (không tính vào longVideos)[cite: 2, 3]
+      "totalWatched": 0,
+      "durationSeconds": 0
+    }
+  },
+
+  // 2. NỀN TẢNG FACEBOOK (Nằm trực tiếp ở root)
+  "facebook": {
+    "summary": {
+      "activeSeconds": 0,
+      "passiveSeconds": 0,
+      "reloadCount": 0
+    },
+    "feed": {
+      "feedPostsScrolled": 0,     // Số bài viết bảng tin đã cuộn qua[cite: 2, 3]
+      "feedPostsRead": 0          // Số bài viết dừng đọc sâu
+    },
+    "reels": {
+      "totalSwipes": 0,           // Tổng số lần quẹt Reels[cite: 2, 3]
+      "validViews": 0,            // Dừng xem >= 2s[cite: 1, 3]
+      "impulsiveCount": 0,
+      "loopViews": 0
+    },
+    "longVideos": {
+      "totalWatched": 0,          // Facebook Watch (/watch)[cite: 2, 3]
+      "usefulCount": 0,
+      "impulsiveCount": 0
+    }
+  },
+
+  // 3. NỀN TẢNG TIKTOK (Nằm trực tiếp ở root)
+  "tiktok": {
+    "summary": {
+      "activeSeconds": 0,
+      "passiveSeconds": 0,
+      "reloadCount": 0
+    },
+    "shorts": {
+      "totalSwipes": 0,
+      "validViews": 0,
+      "impulsiveCount": 0,
+      "loopViews": 0
+    }
+  },
+
+  // 4. PHÂN BỔ 24 BUCKETS THEO GIỜ (Tổng hợp toàn bộ hành vi)
+  "hourly": [
+    // Mảng 24 phần tử (tương ứng từ hour 0 đến hour 23)
+    {
+      "hour": 0,
+      "swipes": 0,                // Gộp tất cả Shorts + Reels + TikTok[cite: 2, 3, 4]
+      "longVideos": 0,            // Gộp tất cả video dài[cite: 2, 3]
+      "feedScrolled": 0,          // Bài viết Facebook Feed[cite: 2, 3]
+      "reloads": 0,               // F5 / Refresh[cite: 2, 3, 4]
+      "activeSeconds": 0          // Thời gian hoạt động thực tế[cite: 2, 3]
+    }
+  ],
+
+  // 5. CHỈ SỐ VƯỢT QUA CÁM DỖ (Box Breathing 12s)
+  "temptation": {
+    "resistedCount": 0,           // Thở xong và quyết định tắt tab (vượt qua cám dỗ)[cite: 1, 2, 3]
+    "succumbedCount": 0           // Thở xong nhưng bấm xem tiếp 5 lượt (chịu thua cám dỗ)[cite: 2, 3]
+  },
+
+  // 6. NHẬT KÝ VIDEO TRONG NGÀY (Làm nguyên liệu phản tư 22h00)
+  "watchedVideos": [
+    {
+      "id": "videoId_hash",
+      "title": "Tiêu đề video",
+      "channel": "Tên kênh",
+      "platform": "youtube",      // "youtube" | "facebook" | "tiktok"
+      "category": "goal",         // "goal" | "leisure" | "distraction" | "unclassified"[cite: 2]
+      "watchedSeconds": 180,
+      "durationSeconds": 300,
+      "isCompletion": true,       // Xem >= 80% thời lượng[cite: 1, 4]
+      "timestamp": 1775616000000,
+      "userOverridden": false     // Người dùng có tự chỉnh danh mục thủ công hay không[cite: 2]
+    }
+  ],
+
+  // 7. HÀNG ĐỢI VIDEO LỌT BỘ LỌC TĨNH (Để AI nén và đề xuất từ khóa lúc 22h00)
+  "unmatchedQueue": [],
+
+  // 8. KẾT QUẢ PHẢN TƯ CUỐI NGÀY
+  "reflection": {
+    "lesson1": "",
+    "lesson2": "",
+    "rating": 5,
+    "aiFeedback": "",
+    "submittedAt": null           // Timestamp nộp bài lúc 22h00[cite: 2, 3]
+  },
+  "petEnergyEndOfDay": 100        // Năng lượng thú cưng chốt sổ lúc 23h59[cite: 2, 3]
+}
+
+2. Key Cấu hình Hệ thống: "app_config"
+{
+  "syncCode": "MF-8924",          // Mã ghép đôi 6 ký tự kết nối Firebase[cite: 2]
+  "auto_sync": true,
+  "masterGoal": "Muốn trở thành phiên bản tốt hơn để gặp người ấy",[cite: 1, 2, 3]
+  "leisureQuotaMinutes": 45,      // Hạn mức giải trí lành mạnh trong ngày[cite: 2]
+
+  "geminiApiKey": "",             // Key cá nhân lưu an toàn trong extension (chỉ lưu local)
+  "emotionalAnchorImage": "data:image/png;base64,...", // Ảnh người thương/mục tiêu cá nhân[cite: 1, 3]
+
+  // HỆ THỐNG 3 MỐC CẢNH BÁO THEO TỪNG NỀN TẢNG & LOẠI HÌNH
+  "thresholds": {
+    "youtube": {
+      "shorts": { "m1": 15, "m2": 30, "m3": 45 },[cite: 2, 3]
+      "long": { "m1": 3, "m2": 5, "m3": 8 }[cite: 2, 3]
+    },
+    "facebook": {
+      "reels": { "m1": 15, "m2": 30, "m3": 45 },[cite: 2, 3]
+      "feeds": { "m1": 20, "m2": 40, "m3": 60 },[cite: 2, 3]
+      "long": { "m1": 2, "m2": 4, "m3": 6 }[cite: 2, 3]
+    },
+    "tiktok": {
+      "shorts": { "m1": 15, "m2": 30, "m3": 45 }[cite: 2]
+    }
+  },
+
+  // THIẾT LẬP POMODORO & GIỜ GIỚI NGHIÊM
+  "pomodoro": {
+    "enabled": false,
+    "focusMinutes": 25,
+    "breakMinutes": 5[cite: 2, 3]
+  },
+  "bedtime": {
+    "enabled": true,
+    "start": "22:30",
+    "end": "05:00"[cite: 2, 3]
+  },
+  "reflection": {
+    "reminderTime": "22:00"[cite: 2, 3]
+  },
+
+  // BỘ TỪ KHÓA LỌC TĨNH 3 TẦNG (Tự tiến hóa sau 22h00)
+  "keywords": {
+    "target": ["lập trình", "tiếng anh", "kỹ năng", "sách", "học", "phát triển", "tài chính", "công nghệ"],[cite: 2, 3]
+    "leisure": ["hài", "game", "gaming", "streamer", "vlog", "ca nhạc", "nấu ăn"],[cite: 2, 3]
+    "distraction": ["drama", "bóc phốt", "hóng biến", "scandal", "cờ bạc", "giật gân"][cite: 2, 3]
+  },
+
+  // THIẾT LẬP GIAO DIỆN BẢN ĐỊA TRÊN CHROME (CHỈ LƯU TẠI LOCAL)
+  "localPreferences": {
+    "hudPosition": { "x": 20, "y": 80 },  // Tọa độ kéo thả Floating HUD[cite: 1]
+    "grayscaleMode": "threshold_m2"       // "off" | "threshold_m2" | "bedtime"[cite: 1]
+  }
+}
+
+3. Key Trạng thái Linh vật & Persona: "pet_state"
+{
+  "energy": 100,                  // Điểm máu/năng lượng (0 - 100)[cite: 2, 3, 4]
+  "mood": "happy",                // "happy" (>=70) | "neutral" (40-69) | "sad" (<40)[cite: 2, 3, 4]
+  "currentStreak": 1,             // Chuỗi ngày giữ kỷ luật hiện tại[cite: 2, 3]
+  "streakDays": 1,[cite: 2, 3]
+  "lastPokeEnergyTime": 0,        // Timestamp tương tác click Pet trên HUD[cite: 2, 4]
+  "lastActiveTimestamp": 1775616000000,[cite: 2, 3]
+
+  // HỆ THỐNG GIAO DIỆN PET ĐA CHẾ ĐỘ
+  "mode": "puppet",               // "default" | "puppet" | "ai_generated"[cite: 2, 4]
+  "accessories": {
+    "unlockedItems": ["sunglasses", "laurel"],[cite: 2, 4]
+    "equippedHead": null[cite: 2]
+  },
+  "puppetPhotos": {
+    "happyImage": "",
+    "neutralImage": "",
+    "sadImage": ""[cite: 2]
+  },
+  "aiSprites": {
+    "happy": "",
+    "neutral": "",
+    "sad": ""[cite: 2]
+  },
+
+  // HỒ SƠ THÓI QUEN ĐƯỜNG DÀI (Persona tối đa 30 ngày cho Gemini System Prompt)
+  "userPersona": {
+    "totalTrackedDays": 0,[cite: 2]
+    "streakRecord": 0,[cite: 2]
+    "totalUsefulVideos": 0,[cite: 2]
+    "avgUsefulPct": 0,[cite: 2]
+    "vulnerabilities": ["Dễ lướt vô thức sau 21h30", "Hay F5 khi gặp bài khó"],[cite: 4]
+    "strengths": ["Xem trọn vẹn video học tập dài trên 10 phút"],[cite: 4]
+    "history": [][cite: 2]
+  }
+}

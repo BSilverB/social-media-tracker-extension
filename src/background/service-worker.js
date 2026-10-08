@@ -12,6 +12,14 @@ import {
   generateChibiPetSprites
 } from "./gemini-client.js";
 
+import {
+  queueDesktopSyncToFirebase,
+  pushDataToFirebase,
+  pushConfigToFirebase,
+  getFirebaseSyncSettings,
+  startFirebaseRealtimeStream
+} from "../utils/firebase-service.js";
+
 // ─── Khởi tạo & Alarms ────────────────────────────────────────────────────────
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -24,52 +32,65 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 function initDefaultState() {
+  const todayKey = getTodayDateKey();
   chrome.storage.local.get([
+    "app_config",
     "pet_state",
-    "petState",
-    "petConfig",
-    "user_persona",
-    "unmatched_queue",
-    "suggested_keywords"
+    todayKey
   ], (res) => {
     const toSet = {};
-    if (!res.petState && !res.pet_state) {
-      const defaultState = {
-        energy: 100,
-        mood: "happy", // "happy" | "neutral" | "sad"
-        currentStreak: 0,
-        streakDays: 0,
-        lastStreakDate: null,
-        level: 1
-      };
-      toSet.petState = defaultState;
-      toSet.pet_state = defaultState;
-    }
-    if (!res.petConfig) {
-      toSet.petConfig = {
-        mode: "default", // "default" | "puppet" | "ai_generated"
-        uploadedImageBase64: "",
-        aiSprites: {
-          happy: "",
-          neutral: "",
-          sad: ""
+    if (!res.app_config) {
+      toSet.app_config = {
+        syncCode: "MF-8924",
+        auto_sync: true,
+        masterGoal: "Muốn trở thành phiên bản tốt hơn để gặp người ấy",
+        leisureQuotaMinutes: 45,
+        geminiApiKey: "",
+        emotionalAnchorImage: "",
+        thresholds: {
+          youtube: { shorts: { m1: 15, m2: 30, m3: 45 }, long: { m1: 3, m2: 5, m3: 8 } },
+          facebook: { reels: { m1: 15, m2: 30, m3: 45 }, feeds: { m1: 20, m2: 40, m3: 60 }, long: { m1: 2, m2: 4, m3: 6 } },
+          tiktok: { shorts: { m1: 15, m2: 30, m3: 45 } }
+        },
+        pomodoro: { enabled: false, focusMinutes: 25, breakMinutes: 5 },
+        bedtime: { enabled: true, start: "22:30", end: "05:00" },
+        reflection: { reminderTime: "22:00" },
+        keywords: {
+          target: ["lập trình", "tiếng anh", "kỹ năng", "sách", "học", "phát triển", "tài chính", "công nghệ"],
+          leisure: ["hài", "game", "gaming", "streamer", "vlog", "ca nhạc", "nấu ăn"],
+          distraction: ["drama", "bóc phốt", "hóng biến", "scandal", "cờ bạc", "giật gân"]
+        },
+        localPreferences: {
+          hudPosition: { x: 20, y: 80 },
+          grayscaleMode: "threshold_m2"
         }
       };
     }
-    if (!res.user_persona) {
-      toSet.user_persona = {
-        totalTrackedDays: 0,
-        streakRecord: 0,
-        totalUsefulVideos: 0,
-        avgUsefulPct: 0,
-        history: [] // Danh sách digest 7-30 ngày gần nhất
+    if (!res.pet_state) {
+      toSet.pet_state = {
+        energy: 100,
+        mood: "happy",
+        currentStreak: 1,
+        streakDays: 1,
+        lastPokeEnergyTime: 0,
+        lastActiveTimestamp: Date.now(),
+        mode: "default",
+        accessories: {
+          unlockedItems: ["sunglasses", "laurel"],
+          equippedHead: null
+        },
+        puppetPhotos: { happy: "", neutral: "", sad: "" },
+        aiSprites: { happy: "", neutral: "", sad: "" },
+        userPersona: {
+          totalTrackedDays: 0,
+          streakRecord: 0,
+          totalUsefulVideos: 0,
+          avgUsefulPct: 0,
+          vulnerabilities: [],
+          strengths: [],
+          history: []
+        }
       };
-    }
-    if (!res.unmatched_queue) {
-      toSet.unmatched_queue = [];
-    }
-    if (!res.suggested_keywords) {
-      toSet.suggested_keywords = [];
     }
     if (Object.keys(toSet).length > 0) {
       chrome.storage.local.set(toSet);
@@ -136,24 +157,25 @@ async function handleDaily22hRoutine() {
   openReflectionTab();
 
   const todayKey = getTodayDateKey();
-  chrome.storage.local.get([todayKey, "pet_state", "unmatched_queue", "gemini_api_key", "suggested_keywords", "app_config"], async (res) => {
+  chrome.storage.local.get([todayKey, "pet_state", "app_config"], async (res) => {
     const dayData = res[todayKey] || {};
     const petState = res.pet_state || { energy: 80, mood: "happy", streakDays: 0, lastStreakDate: null };
-    const apiKey = res.gemini_api_key;
-    const unmatchedQueue = res.unmatched_queue || [];
+    const apiKey = res.app_config?.geminiApiKey;
+    const unmatchedQueue = dayData.unmatchedQueue || [];
 
     // 1. Kiểm tra Streak hôm nay
     checkAndAwardStreak(dayData, petState, todayKey);
 
-    // 2. Tự động tiến hóa bộ lọc nếu có video trong unmatched_queue
+    // 2. Tự động tiến hóa bộ lọc nếu có video trong unmatchedQueue
     if (apiKey && unmatchedQueue.length >= 2) {
       try {
         const titles = unmatchedQueue.map(item => item.title).filter(Boolean);
         const newSuggestions = await extractSuggestedKeywords(titles, apiKey);
         if (newSuggestions && newSuggestions.length > 0) {
-          const currentSuggestions = res.suggested_keywords || [];
+          const config = res.app_config || {};
+          const currentSuggestions = config.suggestedKeywords || [];
           const existingWords = new Set(currentSuggestions.map(s => s.word.toLowerCase()));
-          const configWords = new Set((res.app_config?.targetKeywords || []).map(w => w.toLowerCase()));
+          const configWords = new Set((config.keywords?.target || []).map(w => w.toLowerCase()));
 
           const merged = [...currentSuggestions];
           newSuggestions.forEach(s => {
@@ -162,10 +184,12 @@ async function handleDaily22hRoutine() {
             }
           });
 
-          chrome.storage.local.set({
-            suggested_keywords: merged,
-            unmatched_queue: [] // Xóa hàng đợi đã xử lý
-          });
+          config.suggestedKeywords = merged;
+          dayData.unmatchedQueue = []; // Xóa hàng đợi đã xử lý
+
+          const toSave = { app_config: config };
+          toSave[todayKey] = dayData;
+          chrome.storage.local.set(toSave);
           console.log("[Mindful SW] Tự động trích xuất từ khóa 22h00:", merged);
         }
       } catch (e) {
@@ -198,7 +222,7 @@ function getTodayDateKey() {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return `stats_${y}-${m}-${day}`;
 }
 
 /**
@@ -210,7 +234,7 @@ function checkAndAwardStreak(dayData, petState, todayKey) {
 
   const ytLong = dayData.youtube?.longVideos?.totalWatched || 0;
   const fbLong = dayData.facebook?.longVideos?.totalWatched || 0;
-  const ytShorts = dayData.youtube?.shortVideos?.totalSwipes || 0;
+  const ytShorts = dayData.youtube?.shorts?.totalSwipes || 0;
   const fbReels = dayData.facebook?.reels?.totalSwipes || 0;
 
   // Tiêu chí thành công: không vi phạm quá đà (ít hơn 12 video dài và 60 shorts)
@@ -235,7 +259,7 @@ function checkAndAwardStreak(dayData, petState, todayKey) {
   }
 
   petState.lastStreakDate = todayKey;
-  chrome.storage.local.set({ pet_state: petState, petState: petState });
+  chrome.storage.local.set({ pet_state: petState });
 }
 
 /**
@@ -244,14 +268,14 @@ function checkAndAwardStreak(dayData, petState, todayKey) {
 function buildContextDigest(dayData) {
   const ytSummary = dayData.youtube?.summary || {};
   const fbSummary = dayData.facebook?.summary || {};
-  const ytLong = dayData.youtube?.longVideos || { totalWatched: 0, impulsiveCount: 0, usefulCount: 0, details: [] };
-  const fbLong = dayData.facebook?.longVideos || { totalWatched: 0, impulsiveCount: 0, usefulCount: 0, details: [] };
-  const ytShorts = dayData.youtube?.shortVideos?.totalSwipes || 0;
+  const ytLong = dayData.youtube?.longVideos || { totalWatched: 0, impulsiveCount: 0, usefulCount: 0 };
+  const fbLong = dayData.facebook?.longVideos || { totalWatched: 0, impulsiveCount: 0, usefulCount: 0 };
+  const ytShorts = dayData.youtube?.shorts?.totalSwipes || 0;
   const fbReels = dayData.facebook?.reels?.totalSwipes || 0;
-  const musicVideos = dayData.youtube?.musicVideos || { totalWatched: 0, totalDurationSeconds: 0 };
-  const studyVideoLogs = Array.isArray(dayData.studyVideoLogs) ? dayData.studyVideoLogs.slice(0, 10) : [];
+  const musicVideos = dayData.youtube?.musicVideos || { totalWatched: 0, durationSeconds: 0 };
+  const watchedVideos = Array.isArray(dayData.watchedVideos) ? dayData.watchedVideos : [];
 
-  const totalActiveSeconds = (ytSummary.activeTimeSeconds || 0) + (fbSummary.activeTimeSeconds || 0);
+  const totalActiveSeconds = (ytSummary.activeSeconds || 0) + (fbSummary.activeSeconds || 0);
   const activeMinutes = Math.round(totalActiveSeconds / 60);
 
   const totalLong = ytLong.totalWatched + fbLong.totalWatched;
@@ -261,17 +285,16 @@ function buildContextDigest(dayData) {
   const usefulPct = totalLong > 0 ? Math.round((totalUseful / totalLong) * 100) : 0;
   const distractPct = totalLong > 0 ? Math.round((totalImpulsive / totalLong) * 100) : 0;
 
-  // Lọc các video bổ ích đã xem trọn vẹn (isUseful === true hoặc completionPct >= 80)
-  const allDetails = [...(ytLong.details || []), ...(fbLong.details || [])];
-  const usefulVideos = allDetails
-    .filter(v => v.isUseful || (v.completionPct && v.completionPct >= 80))
+  // Lọc các video bổ ích đã xem trọn vẹn (category === "Mục tiêu" hoặc completionPct >= 80)
+  const usefulVideos = watchedVideos
+    .filter(v => v.category === "Mục tiêu" || (v.completionPct && v.completionPct >= 80))
     .slice(0, 5)
     .map(v => v.title);
 
   // Lấy danh sách video chưa phân loại được
-  const unclassifiedVideos = (dayData.unclassifiedVideos && dayData.unclassifiedVideos.length > 0)
-    ? dayData.unclassifiedVideos.slice(0, 10).map(v => v.title)
-    : allDetails.filter(v => v.category === "Khác").slice(0, 10).map(v => v.title);
+  const unclassifiedVideos = (dayData.unmatchedQueue && dayData.unmatchedQueue.length > 0)
+    ? dayData.unmatchedQueue.slice(0, 10).map(v => v.title)
+    : watchedVideos.filter(v => v.category === "Khác" || v.category === "unclassified").slice(0, 10).map(v => v.title);
 
   return {
     activeMinutes,
@@ -280,7 +303,7 @@ function buildContextDigest(dayData) {
     totalVideos: totalLong + ytShorts + fbReels,
     usefulVideos,
     musicVideos,
-    studyVideoLogs,
+    studyVideoLogs: watchedVideos.filter(v => v.category === "Mục tiêu").slice(0, 10),
     unclassifiedVideos
   };
 }
@@ -346,10 +369,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // 9. Quản lý trạng thái Pet (Gamification)
   if (msg.type === "GET_PET_STATE") {
-    chrome.storage.local.get(["petState", "pet_state", "petConfig"], (res) => {
-      const petState = res.petState || res.pet_state || { energy: 100, mood: "happy", currentStreak: 0, streakDays: 0 };
-      const petConfig = res.petConfig || { mode: "default", uploadedImageBase64: "", aiSprites: {} };
-      sendResponse({ petState, petConfig, pet_state: petState });
+    chrome.storage.local.get(["pet_state"], (res) => {
+      const pet_state = res.pet_state || { energy: 100, mood: "happy", currentStreak: 1, streakDays: 1, mode: "default" };
+      sendResponse({ petState: pet_state, petConfig: pet_state, pet_state });
     });
     return true;
   }
@@ -367,10 +389,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // 11. Cập nhật cấu hình Pet (Mode, uploaded image, etc.)
   if (msg.type === "UPDATE_PET_CONFIG") {
-    chrome.storage.local.get(["petConfig"], (res) => {
-      const updated = Object.assign({}, res.petConfig || {}, msg.config || {});
-      chrome.storage.local.set({ petConfig: updated }, () => {
-        sendResponse({ ok: true, petConfig: updated });
+    chrome.storage.local.get(["pet_state"], (res) => {
+      const pet = Object.assign({}, res.pet_state || {}, msg.config || {});
+      chrome.storage.local.set({ pet_state: pet }, () => {
+        sendResponse({ ok: true, petConfig: pet, pet_state: pet });
       });
     });
     return true;
@@ -405,31 +427,56 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "RESET_DEV_DATA") {
     const todayKey = getTodayDateKey();
     const cleanDayData = {
+      date: todayKey.replace("stats_", ""),
       youtube: {
-        summary: { activeTimeSeconds: 0, passiveTimeSeconds: 0, reloadCount: 0 },
-        longVideos: { totalWatched: 0, impulsiveCount: 0, usefulCount: 0, details: [] },
-        shortVideos: { totalSwipes: 0, validViews: 0, loopViews: 0 }
+        summary: { activeSeconds: 0, passiveSeconds: 0, reloadCount: 0 },
+        shorts: { totalSwipes: 0, validViews: 0, impulsiveCount: 0, loopViews: 0 },
+        longVideos: { totalWatched: 0, usefulCount: 0, impulsiveCount: 0 },
+        musicVideos: { totalWatched: 0, durationSeconds: 0 }
       },
       facebook: {
-        summary: { activeTimeSeconds: 0, passiveTimeSeconds: 0, reloadCount: 0, feedPostsScrolled: 0 },
-        longVideos: { totalWatched: 0, impulsiveCount: 0, usefulCount: 0, details: [] },
-        reels: { totalSwipes: 0, validViews: 0, loopViews: 0 }
+        summary: { activeSeconds: 0, passiveSeconds: 0, reloadCount: 0 },
+        feed: { feedPostsScrolled: 0, feedPostsRead: 0 },
+        reels: { totalSwipes: 0, validViews: 0, impulsiveCount: 0, loopViews: 0 },
+        longVideos: { totalWatched: 0, usefulCount: 0, impulsiveCount: 0 }
       },
-      reflection: { lesson1: "", lesson2: "", rating: 5, submittedAt: null },
-      studyVideoLogs: [],
-      unclassifiedVideos: []
+      tiktok: {
+        summary: { activeSeconds: 0, passiveSeconds: 0, reloadCount: 0 },
+        shorts: { totalSwipes: 0, validViews: 0, impulsiveCount: 0, loopViews: 0 }
+      },
+      hourly: Array.from({ length: 24 }, (_, h) => ({
+        hour: h, swipes: 0, longVideos: 0, feedScrolled: 0, reloads: 0, activeSeconds: 0
+      })),
+      temptation: { resistedCount: 0, succumbedCount: 0 },
+      watchedVideos: [],
+      unmatchedQueue: [],
+      reflection: { lesson1: "", lesson2: "", rating: 5, aiFeedback: "", submittedAt: null },
+      petEnergyEndOfDay: 100
     };
     const cleanPetState = {
       energy: 100,
       mood: "happy",
-      currentStreak: 0,
-      streakDays: 0,
-      lastStreakDate: null
+      currentStreak: 1,
+      streakDays: 1,
+      lastPokeEnergyTime: 0,
+      lastActiveTimestamp: Date.now(),
+      mode: "default",
+      accessories: { unlockedItems: ["sunglasses", "laurel"], equippedHead: null },
+      puppetPhotos: { happy: "", neutral: "", sad: "" },
+      aiSprites: { happy: "", neutral: "", sad: "" },
+      userPersona: {
+        totalTrackedDays: 0,
+        streakRecord: 0,
+        totalUsefulVideos: 0,
+        avgUsefulPct: 0,
+        vulnerabilities: [],
+        strengths: [],
+        history: []
+      }
     };
 
     const payload = {};
     payload[todayKey] = cleanDayData;
-    payload["petState"] = cleanPetState;
     payload["pet_state"] = cleanPetState;
 
     chrome.storage.local.set(payload, () => {
@@ -455,7 +502,7 @@ async function handleGeminiClassify({ videoId, title, watchedSeconds, isShort })
   }
 
   return new Promise((resolve) => {
-    chrome.storage.local.get(["ai_classification_cache", "gemini_api_key"], async (res) => {
+    chrome.storage.local.get(["ai_classification_cache", "app_config"], async (res) => {
       const cache = res.ai_classification_cache || {};
 
       // 1. Kiểm tra Cache trong storage (Miễn phí 100% token)
@@ -463,7 +510,7 @@ async function handleGeminiClassify({ videoId, title, watchedSeconds, isShort })
         return resolve({ ...cache[videoId], cached: true });
       }
 
-      const apiKey = res.gemini_api_key;
+      const apiKey = res.app_config?.geminiApiKey;
       if (!apiKey) {
         return resolve({ category: "Khác", relevanceScore: 30, noApiKey: true });
       }
@@ -495,19 +542,24 @@ async function handleGeminiClassify({ videoId, title, watchedSeconds, isShort })
 }
 
 /**
- * Thêm video "lọt lưới" (unmatched) vào hàng đợi
+ * Thêm video "lọt lưới" (unmatched) vào hàng đợi trong ngày
  */
 async function handleAddUnmatchedVideo({ id, title, watchedSeconds }) {
   if (!id || !title) return { ok: false };
 
+  const todayKey = getTodayDateKey();
   return new Promise((resolve) => {
-    chrome.storage.local.get(["unmatched_queue"], (res) => {
-      const queue = res.unmatched_queue || [];
+    chrome.storage.local.get([todayKey], (res) => {
+      const dayData = res[todayKey] || {};
+      const queue = dayData.unmatchedQueue || [];
       // Tránh trùng lặp
       if (!queue.some(item => item.id === id)) {
         queue.push({ id, title, watchedSeconds: watchedSeconds || 0, timestamp: Date.now() });
         if (queue.length > 40) queue.shift(); // Tối đa 40 video
-        chrome.storage.local.set({ unmatched_queue: queue });
+        dayData.unmatchedQueue = queue;
+        const toSave = {};
+        toSave[todayKey] = dayData;
+        chrome.storage.local.set(toSave);
       }
       resolve({ ok: true, queueLength: queue.length });
     });
@@ -515,27 +567,30 @@ async function handleAddUnmatchedVideo({ id, title, watchedSeconds }) {
 }
 
 /**
- * Tự tiến hóa: Gọi Gemini trích xuất từ khóa từ unmatched_queue
+ * Tự tiến hóa: Gọi Gemini trích xuất từ khóa từ unmatchedQueue trong ngày
  */
 async function handleEvolveFilter() {
+  const todayKey = getTodayDateKey();
   return new Promise((resolve) => {
-    chrome.storage.local.get(["unmatched_queue", "gemini_api_key", "suggested_keywords", "app_config"], async (res) => {
-      const queue = res.unmatched_queue || [];
-      const apiKey = res.gemini_api_key;
+    chrome.storage.local.get([todayKey, "app_config"], async (res) => {
+      const dayData = res[todayKey] || {};
+      const queue = dayData.unmatchedQueue || [];
+      const config = res.app_config || {};
+      const apiKey = config.geminiApiKey;
 
       if (!apiKey) {
         return resolve({ ok: false, error: "Chưa cấu hình Google Gemini API Key trong Popup Cài đặt." });
       }
       if (queue.length === 0) {
-        return resolve({ ok: true, suggestions: res.suggested_keywords || [], message: "Hàng đợi trống." });
+        return resolve({ ok: true, suggestions: config.suggestedKeywords || [], message: "Hàng đợi trống." });
       }
 
       const titles = queue.map(item => item.title).filter(Boolean);
       const suggestions = await extractSuggestedKeywords(titles, apiKey);
 
-      const existingSuggestions = res.suggested_keywords || [];
+      const existingSuggestions = config.suggestedKeywords || [];
       const existingWords = new Set(existingSuggestions.map(s => s.word.toLowerCase()));
-      const targetWords = new Set((res.app_config?.targetKeywords || []).map(w => w.toLowerCase()));
+      const targetWords = new Set((config.keywords?.target || []).map(w => w.toLowerCase()));
 
       const updatedSuggestions = [...existingSuggestions];
       suggestions.forEach(s => {
@@ -544,10 +599,12 @@ async function handleEvolveFilter() {
         }
       });
 
-      chrome.storage.local.set({
-        suggested_keywords: updatedSuggestions,
-        unmatched_queue: [] // Xóa hàng đợi đã xử lý
-      });
+      config.suggestedKeywords = updatedSuggestions;
+      dayData.unmatchedQueue = []; // Xóa hàng đợi đã xử lý
+
+      const toSave = { app_config: config };
+      toSave[todayKey] = dayData;
+      chrome.storage.local.set(toSave);
 
       resolve({ ok: true, suggestions: updatedSuggestions });
     });
@@ -555,27 +612,29 @@ async function handleEvolveFilter() {
 }
 
 /**
- * Thêm từ khóa AI đề xuất vào targetKeywords
+ * Thêm từ khóa AI đề xuất vào target keywords
  */
 async function handleApproveKeyword(word) {
   if (!word) return { ok: false };
   const cleanWord = word.trim().toLowerCase();
 
   return new Promise((resolve) => {
-    chrome.storage.local.get(["app_config", "suggested_keywords"], (res) => {
+    chrome.storage.local.get(["app_config"], (res) => {
       const config = res.app_config || {};
-      const keywords = Array.isArray(config.targetKeywords) ? config.targetKeywords : [];
+      config.keywords = config.keywords || { target: [], leisure: [], distraction: [] };
+      const targets = config.keywords.target || [];
 
-      if (!keywords.map(k => k.toLowerCase()).includes(cleanWord)) {
-        keywords.push(cleanWord);
-        config.targetKeywords = keywords;
+      if (!targets.map(k => k.toLowerCase()).includes(cleanWord)) {
+        targets.push(cleanWord);
+        config.keywords.target = targets;
       }
 
       // Xóa khỏi danh sách đề xuất
-      const suggestions = (res.suggested_keywords || []).filter(s => s.word.toLowerCase() !== cleanWord);
+      const suggestions = (config.suggestedKeywords || []).filter(s => s.word.toLowerCase() !== cleanWord);
+      config.suggestedKeywords = suggestions;
 
-      chrome.storage.local.set({ app_config: config, suggested_keywords: suggestions }, () => {
-        resolve({ ok: true, keywords, suggestions });
+      chrome.storage.local.set({ app_config: config }, () => {
+        resolve({ ok: true, keywords: targets, suggestions });
       });
     });
   });
@@ -589,9 +648,11 @@ async function handleDismissKeyword(word) {
   const cleanWord = word.trim().toLowerCase();
 
   return new Promise((resolve) => {
-    chrome.storage.local.get(["suggested_keywords"], (res) => {
-      const suggestions = (res.suggested_keywords || []).filter(s => s.word.toLowerCase() !== cleanWord);
-      chrome.storage.local.set({ suggested_keywords: suggestions }, () => {
+    chrome.storage.local.get(["app_config"], (res) => {
+      const config = res.app_config || {};
+      const suggestions = (config.suggestedKeywords || []).filter(s => s.word.toLowerCase() !== cleanWord);
+      config.suggestedKeywords = suggestions;
+      chrome.storage.local.set({ app_config: config }, () => {
         resolve({ ok: true, suggestions });
       });
     });
@@ -603,8 +664,10 @@ async function handleDismissKeyword(word) {
  */
 async function handleGeminiReflect({ dayData, userLessons, masterGoal }) {
   return new Promise((resolve) => {
-    chrome.storage.local.get(["gemini_api_key", "user_persona"], async (res) => {
-      const apiKey = res.gemini_api_key;
+    chrome.storage.local.get(["app_config", "pet_state"], async (res) => {
+      const config = res.app_config || {};
+      const apiKey = config.geminiApiKey;
+      const pet = res.pet_state || {};
       const digest = buildContextDigest(dayData);
 
       if (!apiKey) {
@@ -621,12 +684,14 @@ async function handleGeminiReflect({ dayData, userLessons, masterGoal }) {
 
       const coachResult = await generateReflectionCoach({ digest, userLessons, masterGoal }, apiKey);
 
-      // Cập nhật User Persona đường dài (Long-term Persona)
-      const persona = res.user_persona || {
+      // Cập nhật User Persona đường dài (Long-term Persona) trong pet_state
+      const persona = pet.userPersona || {
         totalTrackedDays: 0,
         streakRecord: 0,
         totalUsefulVideos: 0,
         avgUsefulPct: 0,
+        vulnerabilities: [],
+        strengths: [],
         history: []
       };
 
@@ -637,6 +702,7 @@ async function handleGeminiReflect({ dayData, userLessons, masterGoal }) {
       const currentAvg = persona.avgUsefulPct || 0;
       persona.avgUsefulPct = Math.round((currentAvg * (persona.totalTrackedDays - 1) + digest.usefulPct) / persona.totalTrackedDays);
 
+      persona.history = persona.history || [];
       persona.history.unshift({
         date: getTodayDateKey(),
         usefulPct: digest.usefulPct,
@@ -645,7 +711,8 @@ async function handleGeminiReflect({ dayData, userLessons, masterGoal }) {
       });
       if (persona.history.length > 30) persona.history.pop(); // Giữ tối đa 30 ngày
 
-      chrome.storage.local.set({ user_persona: persona });
+      pet.userPersona = persona;
+      chrome.storage.local.set({ pet_state: pet });
 
       resolve({ ok: true, coachResult, persona });
     });
@@ -660,8 +727,8 @@ async function handleGeminiReflect({ dayData, userLessons, masterGoal }) {
  */
 async function handleUpdatePetState(deltaEnergy = 0, newMood = null) {
   return new Promise((resolve) => {
-    chrome.storage.local.get(["petState", "pet_state"], (res) => {
-      const pet = res.petState || res.pet_state || { energy: 100, mood: "happy", currentStreak: 0, streakDays: 0 };
+    chrome.storage.local.get(["pet_state"], (res) => {
+      const pet = res.pet_state || { energy: 100, mood: "happy", currentStreak: 1, streakDays: 1 };
       if (deltaEnergy !== 0) {
         pet.energy = Math.max(0, Math.min(100, (pet.energy ?? 100) + deltaEnergy));
       }
@@ -674,11 +741,11 @@ async function handleUpdatePetState(deltaEnergy = 0, newMood = null) {
         else pet.mood = "sad";
       }
 
-      pet.streakDays = pet.streakDays ?? pet.currentStreak ?? 0;
+      pet.streakDays = pet.streakDays ?? pet.currentStreak ?? 1;
       pet.currentStreak = pet.streakDays;
 
-      chrome.storage.local.set({ petState: pet, pet_state: pet }, () => {
-        resolve({ ok: true, petState: pet });
+      chrome.storage.local.set({ pet_state: pet }, () => {
+        resolve({ ok: true, petState: pet, pet_state: pet });
       });
     });
   });
@@ -689,8 +756,8 @@ async function handleUpdatePetState(deltaEnergy = 0, newMood = null) {
  */
 async function handleGenerateAiPetSprites(imageBase64) {
   return new Promise((resolve) => {
-    chrome.storage.local.get(["gemini_api_key", "petConfig"], async (res) => {
-      const apiKey = res.gemini_api_key;
+    chrome.storage.local.get(["app_config", "pet_state"], async (res) => {
+      const apiKey = res.app_config?.geminiApiKey;
       if (!apiKey) {
         return resolve({ ok: false, error: "Vui lòng cấu hình Google Gemini API Key trong Popup trước khi tạo Avatar AI." });
       }
@@ -698,12 +765,11 @@ async function handleGenerateAiPetSprites(imageBase64) {
       try {
         const result = await generateChibiPetSprites(imageBase64, apiKey);
         if (result && result.sprites) {
-          const petConfig = res.petConfig || { mode: "ai_generated", uploadedImageBase64: imageBase64, aiSprites: {} };
-          petConfig.aiSprites = result.sprites;
-          petConfig.uploadedImageBase64 = imageBase64;
-          petConfig.mode = "ai_generated";
+          const pet = res.pet_state || { mode: "ai_generated", aiSprites: {} };
+          pet.aiSprites = result.sprites;
+          pet.mode = "ai_generated";
 
-          chrome.storage.local.set({ petConfig }, () => {
+          chrome.storage.local.set({ pet_state: pet }, () => {
             resolve({ ok: true, sprites: result.sprites, fallback: result.fallback || false });
           });
         } else {
@@ -715,4 +781,131 @@ async function handleGenerateAiPetSprites(imageBase64) {
     });
   });
 }
+
+// ─── Firebase Realtime Database Sync Listeners ─────────────────────────────────
+
+let isApplyingRemoteUpdate = false;
+let configPushDebounceTimeout = null;
+
+// 1. Tự động đồng bộ Debounce khi dayData, pet_state hoặc app_config thay đổi
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace !== "local") return;
+
+  const d = new Date();
+  const todayKey = `stats_${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  if (changes[todayKey] || changes.pet_state) {
+    chrome.storage.local.get([todayKey, "pet_state"], (res) => {
+      const todayData = res[todayKey] || {};
+      const pet = res.pet_state || {};
+      queueDesktopSyncToFirebase(todayKey, todayData, pet);
+    });
+  }
+
+  // Tự động đẩy cấu hình lên Firebase khi app_config thay đổi tại local
+  if (changes.app_config && !isApplyingRemoteUpdate) {
+    const newCfg = changes.app_config.newValue;
+    if (newCfg) {
+      if (configPushDebounceTimeout) clearTimeout(configPushDebounceTimeout);
+      configPushDebounceTimeout = setTimeout(() => {
+        pushConfigToFirebase(newCfg).catch((err) => {
+          console.warn("[SW] Lỗi tự động đẩy config lên Firebase:", err);
+        });
+      }, 1000);
+    }
+  }
+});
+
+// 2. Cập nhật Device Handoff khi tắt cửa sổ trình duyệt
+chrome.windows?.onRemoved?.addListener(() => {
+  chrome.windows.getAll((windows) => {
+    if (!windows || windows.length === 0) {
+      // Cửa sổ cuối cùng đã đóng
+      pushDataToFirebase().catch(() => {});
+    }
+  });
+});
+
+// 3. Xử lý dữ liệu thời gian thực từ Cloud đổ về qua SSE Stream
+async function handleFirebaseRealtimeEvent(eventData) {
+  if (!eventData || !eventData.data) return;
+  const { path, data } = eventData;
+
+  try {
+    // A. Nhận cấu hình từ Cloud (/config hoặc full snapshot /)
+    if (path === "/config" || (path === "/" && data && data.config)) {
+      const remoteConfig = path === "/config" ? data : data.config;
+      if (remoteConfig && typeof remoteConfig === "object") {
+        const local = await new Promise((res) => chrome.storage.local.get(["app_config"], res));
+        const currentCfg = local.app_config || {};
+
+        const updatedCfg = {
+          ...currentCfg,
+          masterGoal: remoteConfig.masterGoal ?? currentCfg.masterGoal,
+          leisureQuotaMinutes: remoteConfig.leisureQuotaMinutes ?? currentCfg.leisureQuotaMinutes,
+          pomodoro: remoteConfig.pomodoro ? { ...currentCfg.pomodoro, ...remoteConfig.pomodoro } : currentCfg.pomodoro,
+          bedtime: remoteConfig.bedtime ? { ...currentCfg.bedtime, ...remoteConfig.bedtime } : currentCfg.bedtime,
+          reflection: remoteConfig.reflection ? { ...currentCfg.reflection, ...remoteConfig.reflection } : currentCfg.reflection,
+          thresholds: remoteConfig.thresholds ? { ...currentCfg.thresholds, ...remoteConfig.thresholds } : currentCfg.thresholds,
+          keywords: remoteConfig.keywords ? { ...currentCfg.keywords, ...remoteConfig.keywords } : currentCfg.keywords
+        };
+
+        if (JSON.stringify(updatedCfg) !== JSON.stringify(currentCfg)) {
+          isApplyingRemoteUpdate = true;
+          await chrome.storage.local.set({ app_config: updatedCfg });
+          setTimeout(() => { isApplyingRemoteUpdate = false; }, 1500);
+          console.log("[SW] 🟢 Đã đồng bộ app_config mới từ Cloud về Extension!");
+
+          // Báo cho các tabs đang mở cập nhật mốc tức thì
+          chrome.tabs.query({}, (tabs) => {
+            for (const tab of tabs) {
+              if (tab.id) {
+                chrome.tabs.sendMessage(tab.id, { type: "CONFIG_UPDATED", config: updatedCfg }).catch(() => {});
+              }
+            }
+          });
+        }
+      }
+    }
+
+    // B. Nhận cập nhật Thú cưng (/petState hoặc /sharedState)
+    if (path === "/petState" || path === "/sharedState" || (path === "/" && data && (data.petState || data.sharedState))) {
+      const petSource = (path === "/petState" || path === "/sharedState") ? data : (data.petState || data.sharedState);
+      if (petSource && typeof petSource === "object") {
+        const local = await new Promise((res) => chrome.storage.local.get(["pet_state"], res));
+        const currentPet = local.pet_state || {};
+
+        const updatedPet = {
+          ...currentPet,
+          energy: petSource.energy ?? petSource.petEnergy ?? currentPet.energy,
+          streakDays: petSource.streakDays ?? petSource.streak ?? currentPet.streakDays,
+          currentStreak: petSource.currentStreak ?? petSource.streak ?? currentPet.currentStreak,
+          mood: petSource.mood ?? petSource.petMood ?? currentPet.mood
+        };
+
+        if (JSON.stringify(updatedPet) !== JSON.stringify(currentPet)) {
+          isApplyingRemoteUpdate = true;
+          await chrome.storage.local.set({ pet_state: updatedPet });
+          setTimeout(() => { isApplyingRemoteUpdate = false; }, 1500);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[SW] Lỗi xử lý SSE Event:", err);
+  }
+}
+
+function initRealtimeSync() {
+  getFirebaseSyncSettings().then((settings) => {
+    if (settings.autoSync && settings.syncCode) {
+      startFirebaseRealtimeStream((eventData) => {
+        handleFirebaseRealtimeEvent(eventData);
+      });
+    }
+  });
+}
+
+// Khởi chạy Realtime SSE Stream
+initRealtimeSync();
+
 

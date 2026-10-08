@@ -1,57 +1,140 @@
 /**
  * Mindful Social Media Tracker - Storage Utility Module
- * Quản lý đọc/ghi chrome.storage.local, tạo cấu trúc dữ liệu mặc định theo ngày (YYYY-MM-DD)
+ * Quản lý đọc/ghi chrome.storage.local theo chuẩn đặc tả:
+ * 1. "stats_YYYY-MM-DD"
+ * 2. "app_config"
+ * 3. "pet_state"
  */
 
-// Lấy ngày hiện tại theo giờ địa phương dạng YYYY-MM-DD
-export function getTodayKey() {
-  const d = new Date();
+// Lấy ngày hiện tại dạng YYYY-MM-DD
+export function getDateStr(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
-// Cấu trúc dữ liệu theo ngày mặc định
-export function createDefaultDayData() {
+// Lấy key thống kê ngày hiện tại dạng "stats_YYYY-MM-DD"
+export function getTodayKey(date = new Date()) {
+  return `stats_${getDateStr(date)}`;
+}
+
+// Tạo 24 buckets theo giờ
+export function createDefaultHourlyBuckets() {
+  return Array.from({ length: 24 }, (_, h) => ({
+    hour: h,
+    swipes: 0,
+    longVideos: 0,
+    feedScrolled: 0,
+    reloads: 0,
+    activeSeconds: 0
+  }));
+}
+
+// Cấu trúc dữ liệu theo ngày mặc định: "stats_YYYY-MM-DD"
+export function createDefaultDayData(dateStr = getDateStr()) {
   return {
+    date: dateStr,
+
+    // 1. NỀN TẢNG YOUTUBE
     youtube: {
-      summary: { activeTimeSeconds: 0, passiveTimeSeconds: 0, reloadCount: 0 },
+      summary: {
+        activeSeconds: 0,
+        passiveSeconds: 0,
+        reloadCount: 0
+      },
+      shorts: {
+        totalSwipes: 0,
+        validViews: 0,
+        impulsiveCount: 0,
+        loopViews: 0
+      },
       longVideos: {
         totalWatched: 0,
-        impulsiveCount: 0,
         usefulCount: 0,
-        details: []
+        impulsiveCount: 0
       },
       musicVideos: {
         totalWatched: 0,
-        totalDurationSeconds: 0
-      },
-      shortVideos: { totalSwipes: 0, validViews: 0, loopViews: 0 }
+        durationSeconds: 0
+      }
     },
+
+    // 2. NỀN TẢNG FACEBOOK
     facebook: {
-      summary: { activeTimeSeconds: 0, passiveTimeSeconds: 0, reloadCount: 0, feedPostsScrolled: 0 },
+      summary: {
+        activeSeconds: 0,
+        passiveSeconds: 0,
+        reloadCount: 0
+      },
+      feed: {
+        feedPostsScrolled: 0,
+        feedPostsRead: 0
+      },
+      reels: {
+        totalSwipes: 0,
+        validViews: 0,
+        impulsiveCount: 0,
+        loopViews: 0
+      },
       longVideos: {
         totalWatched: 0,
-        impulsiveCount: 0,
         usefulCount: 0,
-        details: []
-      },
-      reels: { totalSwipes: 0, validViews: 0, loopViews: 0 }
+        impulsiveCount: 0
+      }
     },
-    studyVideoLogs: [],
-    unclassifiedVideos: [],
+
+    // 3. NỀN TẢNG TIKTOK
+    tiktok: {
+      summary: {
+        activeSeconds: 0,
+        passiveSeconds: 0,
+        reloadCount: 0
+      },
+      shorts: {
+        totalSwipes: 0,
+        validViews: 0,
+        impulsiveCount: 0,
+        loopViews: 0
+      }
+    },
+
+    // 4. PHÂN BỔ 24 BUCKETS THEO GIỜ
+    hourly: createDefaultHourlyBuckets(),
+
+    // 5. CHỈ SỐ VƯỢT QUA CÁM DỖ (Box Breathing 12s)
+    temptation: {
+      resistedCount: 0,
+      succumbedCount: 0
+    },
+
+    // 6. NHẬT KÝ VIDEO TRONG NGÀY
+    watchedVideos: [],
+
+    // 7. HÀNG ĐỢI VIDEO LỌT BỘ LỌC TĨNH
+    unmatchedQueue: [],
+
+    // 8. KẾT QUẢ PHẢN TƯ CUỐI NGÀY
     reflection: {
       lesson1: "",
       lesson2: "",
       rating: 5,
+      aiFeedback: "",
       submittedAt: null
-    }
+    },
+    petEnergyEndOfDay: 100
   };
 }
 
-// Cấu hình mặc định của ứng dụng
+// Cấu hình Hệ thống mặc định: "app_config"
 export const DEFAULT_CONFIG = {
+  syncCode: "MF-8924",
+  auto_sync: true,
+  masterGoal: "Muốn trở thành phiên bản tốt hơn để gặp người ấy",
+  leisureQuotaMinutes: 45,
+  geminiApiKey: "",
+  emotionalAnchorImage: "",
   thresholds: {
     youtube: {
       shorts: { m1: 15, m2: 30, m3: 45 },
@@ -61,11 +144,11 @@ export const DEFAULT_CONFIG = {
       reels: { m1: 15, m2: 30, m3: 45 },
       feeds: { m1: 20, m2: 40, m3: 60 },
       long: { m1: 2, m2: 4, m3: 6 }
+    },
+    tiktok: {
+      shorts: { m1: 15, m2: 30, m3: 45 }
     }
   },
-  masterGoal: "Muốn trở thành phiên bản tốt hơn",
-  emotionalAnchorImage: "",
-  targetKeywords: ["lập trình", "tiếng anh", "kỹ năng", "sách", "học", "phát triển", "tài chính", "công nghệ"],
   pomodoro: {
     enabled: false,
     focusMinutes: 25,
@@ -78,93 +161,95 @@ export const DEFAULT_CONFIG = {
   },
   reflection: {
     reminderTime: "22:00"
+  },
+  keywords: {
+    target: ["lập trình", "tiếng anh", "kỹ năng", "sách", "học", "phát triển", "tài chính", "công nghệ"],
+    leisure: ["hài", "game", "gaming", "streamer", "vlog", "ca nhạc", "nấu ăn"],
+    distraction: ["drama", "bóc phốt", "hóng biến", "scandal", "cờ bạc", "giật gân"]
+  },
+  localPreferences: {
+    hudPosition: { x: 20, y: 80 },
+    grayscaleMode: "threshold_m2"
   }
 };
 
-// Đọc toàn bộ cấu hình và dữ liệu ngày hiện tại
+// Trạng thái Linh vật & Persona mặc định: "pet_state"
+export const DEFAULT_PET_STATE = {
+  energy: 100,
+  mood: "happy",
+  currentStreak: 1,
+  streakDays: 1,
+  lastPokeEnergyTime: 0,
+  lastActiveTimestamp: Date.now(),
+  mode: "default",
+  accessories: {
+    unlockedItems: ["sunglasses", "laurel"],
+    equippedHead: null
+  },
+  puppetPhotos: {
+    happyImage: "",
+    neutralImage: "",
+    sadImage: ""
+  },
+  aiSprites: {
+    happy: "",
+    neutral: "",
+    sad: ""
+  },
+  userPersona: {
+    totalTrackedDays: 0,
+    streakRecord: 0,
+    totalUsefulVideos: 0,
+    avgUsefulPct: 0,
+    vulnerabilities: ["Dễ lướt vô thức sau 21h30", "Hay F5 khi gặp bài khó"],
+    strengths: ["Xem trọn vẹn video học tập dài trên 10 phút"],
+    history: []
+  }
+};
+
+/**
+ * Cập nhật bucket theo giờ hiện tại
+ * @param {object} dayData
+ * @param {object} param1 - { swipes, longVideos, feedScrolled, reloads, activeSeconds }
+ */
+export function recordHourlyMetrics(dayData, { swipes = 0, longVideos = 0, feedScrolled = 0, reloads = 0, activeSeconds = 0 } = {}) {
+  if (!dayData || !Array.isArray(dayData.hourly)) return;
+  const currentHour = new Date().getHours();
+  if (currentHour >= 0 && currentHour < 24) {
+    if (!dayData.hourly[currentHour]) {
+      dayData.hourly[currentHour] = {
+        hour: currentHour,
+        swipes: 0,
+        longVideos: 0,
+        feedScrolled: 0,
+        reloads: 0,
+        activeSeconds: 0
+      };
+    }
+    const b = dayData.hourly[currentHour];
+    if (swipes) b.swipes = (b.swipes || 0) + swipes;
+    if (longVideos) b.longVideos = (b.longVideos || 0) + longVideos;
+    if (feedScrolled) b.feedScrolled = (b.feedScrolled || 0) + feedScrolled;
+    if (reloads) b.reloads = (b.reloads || 0) + reloads;
+    if (activeSeconds) b.activeSeconds = (b.activeSeconds || 0) + activeSeconds;
+  }
+}
+
+// Đọc toàn bộ cấu hình, dữ liệu ngày hiện tại và trạng thái Pet
 export function loadAppData(callback) {
   const todayKey = getTodayKey();
-  chrome.storage.local.get([todayKey, "app_config", "hud_position", "pomodoro_state"], (result) => {
+  chrome.storage.local.get([todayKey, "app_config", "pet_state", "pomodoro_state"], (result) => {
     // 1. Config
     const config = Object.assign({}, DEFAULT_CONFIG, result.app_config || {});
-    
-    // Tự động tương thích ngược và merge thresholds
-    const rawThresh = result.app_config?.thresholds;
-    if (rawThresh) {
-      if (rawThresh.youtube || rawThresh.facebook) {
-        config.thresholds = {
-          youtube: {
-            shorts: Object.assign({}, DEFAULT_CONFIG.thresholds.youtube.shorts, rawThresh.youtube?.shorts),
-            long: Object.assign({}, DEFAULT_CONFIG.thresholds.youtube.long, rawThresh.youtube?.long)
-          },
-          facebook: {
-            reels: Object.assign({}, DEFAULT_CONFIG.thresholds.facebook.reels, rawThresh.facebook?.reels),
-            feeds: Object.assign({}, DEFAULT_CONFIG.thresholds.facebook.feeds, rawThresh.facebook?.feeds),
-            long: Object.assign({}, DEFAULT_CONFIG.thresholds.facebook.long, rawThresh.facebook?.long)
-          }
-        };
-      } else {
-        // Cấu trúc cũ dạng { shorts: {...}, long: {...} } -> migrate sang cấu trúc nền tảng
-        const oldShorts = rawThresh.shorts || DEFAULT_CONFIG.thresholds.youtube.shorts;
-        const oldLong = rawThresh.long || DEFAULT_CONFIG.thresholds.youtube.long;
-        config.thresholds = {
-          youtube: {
-            shorts: Object.assign({}, DEFAULT_CONFIG.thresholds.youtube.shorts, oldShorts),
-            long: Object.assign({}, DEFAULT_CONFIG.thresholds.youtube.long, oldLong)
-          },
-          facebook: {
-            reels: Object.assign({}, DEFAULT_CONFIG.thresholds.facebook.reels, oldShorts),
-            feeds: Object.assign({}, DEFAULT_CONFIG.thresholds.facebook.feeds),
-            long: Object.assign({}, DEFAULT_CONFIG.thresholds.facebook.long, oldLong)
-          }
-        };
-      }
-    } else {
-      config.thresholds = JSON.parse(JSON.stringify(DEFAULT_CONFIG.thresholds));
-    }
-
-    if (result.app_config?.pomodoro) {
-      config.pomodoro = Object.assign({}, DEFAULT_CONFIG.pomodoro, result.app_config.pomodoro);
-    }
+    config.thresholds = Object.assign({}, DEFAULT_CONFIG.thresholds, config.thresholds || {});
+    config.keywords = Object.assign({}, DEFAULT_CONFIG.keywords, config.keywords || {});
+    config.localPreferences = Object.assign({}, DEFAULT_CONFIG.localPreferences, config.localPreferences || {});
 
     // 2. Day data
-    const rawDay = result[todayKey];
-    const dayData = createDefaultDayData();
+    const dayData = Object.assign(createDefaultDayData(), result[todayKey] || {});
 
-    if (rawDay) {
-      if (rawDay.youtube) {
-        dayData.youtube.summary = Object.assign({}, dayData.youtube.summary, rawDay.youtube.summary);
-        dayData.youtube.shortVideos = Object.assign({}, dayData.youtube.shortVideos, rawDay.youtube.shortVideos);
-        dayData.youtube.musicVideos = Object.assign({ totalWatched: 0, totalDurationSeconds: 0 }, rawDay.youtube.musicVideos || {});
-        if (rawDay.youtube.longVideos) {
-          dayData.youtube.longVideos.totalWatched = rawDay.youtube.longVideos.totalWatched || 0;
-          dayData.youtube.longVideos.impulsiveCount = rawDay.youtube.longVideos.impulsiveCount || 0;
-          dayData.youtube.longVideos.usefulCount = rawDay.youtube.longVideos.usefulCount || 0;
-          dayData.youtube.longVideos.details = Array.isArray(rawDay.youtube.longVideos.details)
-            ? rawDay.youtube.longVideos.details
-            : [];
-        }
-      }
-      if (rawDay.facebook) {
-        dayData.facebook.summary = Object.assign({}, dayData.facebook.summary, rawDay.facebook.summary);
-        dayData.facebook.reels = Object.assign({}, dayData.facebook.reels, rawDay.facebook.reels);
-        if (rawDay.facebook.longVideos) {
-          dayData.facebook.longVideos.totalWatched = rawDay.facebook.longVideos.totalWatched || 0;
-          dayData.facebook.longVideos.impulsiveCount = rawDay.facebook.longVideos.impulsiveCount || 0;
-          dayData.facebook.longVideos.usefulCount = rawDay.facebook.longVideos.usefulCount || 0;
-          dayData.facebook.longVideos.details = Array.isArray(rawDay.facebook.longVideos.details)
-            ? rawDay.facebook.longVideos.details
-            : [];
-        }
-      }
-      dayData.studyVideoLogs = Array.isArray(rawDay.studyVideoLogs) ? rawDay.studyVideoLogs : [];
-      if (rawDay.reflection) {
-        dayData.reflection = Object.assign({}, dayData.reflection, rawDay.reflection);
-      }
-    }
-
-    // 3. HUD pos
-    const hudPosition = result.hud_position || null;
+    // 3. Pet State
+    const petState = Object.assign({}, DEFAULT_PET_STATE, result.pet_state || {});
 
     // 4. Pomodoro state
     const pomodoroState = result.pomodoro_state || {
@@ -174,7 +259,9 @@ export function loadAppData(callback) {
       durationMinutes: config.pomodoro?.focusMinutes || 25
     };
 
-    if (callback) callback({ config, dayData, hudPosition, pomodoroState, todayKey });
+    if (callback) {
+      callback({ config, dayData, petState, pomodoroState, todayKey });
+    }
   });
 }
 
@@ -192,13 +279,22 @@ export function saveDayData(dayData, platformKey, immediate = false) {
 
     chrome.storage.local.get([todayKey], (res) => {
       const existing = res[todayKey] || createDefaultDayData();
-      if (platformKey === "youtube") {
+
+      if (platformKey === "youtube" && dayData.youtube) {
         existing.youtube = dayData.youtube;
-      } else if (platformKey === "facebook") {
+      } else if (platformKey === "facebook" && dayData.facebook) {
         existing.facebook = dayData.facebook;
+      } else if (platformKey === "tiktok" && dayData.tiktok) {
+        existing.tiktok = dayData.tiktok;
       }
-      if (dayData.studyVideoLogs) {
-        existing.studyVideoLogs = dayData.studyVideoLogs;
+
+      if (dayData.hourly) existing.hourly = dayData.hourly;
+      if (dayData.temptation) existing.temptation = dayData.temptation;
+      if (dayData.watchedVideos) existing.watchedVideos = dayData.watchedVideos;
+      if (dayData.unmatchedQueue) existing.unmatchedQueue = dayData.unmatchedQueue;
+      if (dayData.reflection) existing.reflection = dayData.reflection;
+      if (typeof dayData.petEnergyEndOfDay === "number") {
+        existing.petEnergyEndOfDay = dayData.petEnergyEndOfDay;
       }
 
       const payload = {};
@@ -221,19 +317,37 @@ export function saveDayData(dayData, platformKey, immediate = false) {
   }
 }
 
-// Lưu vị trí HUD
+// Lưu trạng thái Pet
+export function savePetState(petState, callback) {
+  chrome.storage.local.get(["pet_state"], (res) => {
+    const existing = res.pet_state || DEFAULT_PET_STATE;
+    const merged = Object.assign({}, existing, petState);
+    chrome.storage.local.set({ pet_state: merged }, callback);
+  });
+}
+
+// Lưu cấu hình ứng dụng
+export function saveAppConfig(config, callback) {
+  chrome.storage.local.get(["app_config"], (res) => {
+    const existing = res.app_config || DEFAULT_CONFIG;
+    const merged = Object.assign({}, existing, config);
+    chrome.storage.local.set({ app_config: merged }, callback);
+  });
+}
+
+// Lưu vị trí HUD vào app_config.localPreferences.hudPosition
 export function saveHUDPosition(pos) {
-  chrome.storage.local.set({ hud_position: pos });
+  chrome.storage.local.get(["app_config"], (res) => {
+    const config = res.app_config || DEFAULT_CONFIG;
+    if (!config.localPreferences) config.localPreferences = {};
+    config.localPreferences.hudPosition = pos;
+    chrome.storage.local.set({ app_config: config });
+  });
 }
 
 // Lưu trạng thái Pomodoro
 export function savePomodoroState(state) {
   chrome.storage.local.set({ pomodoro_state: state });
-}
-
-// Lưu cấu hình ứng dụng
-export function saveAppConfig(config, callback) {
-  chrome.storage.local.set({ app_config: config }, callback);
 }
 
 // Format giây sang chuỗi ngắn gọn "12m 30s"

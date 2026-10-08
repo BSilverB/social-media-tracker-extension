@@ -19,11 +19,12 @@ export class HUDManager {
    * @param {Function} opts.onStopPomodoro - () => void
    * @param {boolean} opts.isBreakSession
    */
-  constructor({ dayData, platformKey, isYT, isFB, getThresholds, getPomodoroLabel, getPomodoroActive, onStartPomodoroRequest, onStopPomodoro, petEngine, onFocusModeToggle }) {
+  constructor({ dayData, platformKey, isYT, isFB, isTT, getThresholds, getPomodoroLabel, getPomodoroActive, onStartPomodoroRequest, onStopPomodoro, petEngine, onFocusModeToggle }) {
     this.dayData = dayData;
     this.platformKey = platformKey;
     this.isYT = isYT;
     this.isFB = isFB;
+    this.isTT = isTT;
     this.getThresholds = getThresholds;
     this.getPomodoroLabel = getPomodoroLabel || (() => null);
     this.getPomodoroActive = getPomodoroActive || (() => false);
@@ -149,7 +150,7 @@ export class HUDManager {
 
     if (this.isYT) {
       if (location.pathname.startsWith("/shorts")) {
-        currentCount = this.dayData.youtube.shortVideos.totalSwipes || 0;
+        currentCount = this.dayData.youtube.shorts.totalSwipes || 0;
         targetThresh = ytThresh.shorts || { m1: 15, m2: 30, m3: 45 };
       } else {
         currentCount = this.dayData.youtube.longVideos.totalWatched || 0;
@@ -163,7 +164,7 @@ export class HUDManager {
         currentCount = this.dayData.facebook.longVideos?.totalWatched || 0;
         targetThresh = fbThresh.long || { m1: 2, m2: 4, m3: 6 };
       } else {
-        currentCount = this.dayData.facebook.summary.feedPostsScrolled || 0;
+        currentCount = this.dayData.facebook.feed?.feedPostsScrolled || 0;
         targetThresh = fbThresh.feeds || { m1: 20, m2: 40, m3: 60 };
       }
     }
@@ -204,7 +205,7 @@ export class HUDManager {
 
     if (this._isMinimized) {
       this.hud.innerHTML = `
-        <span style="cursor:pointer; font-weight:bold; color:#A78BFA;" id="mindful-hud-toggle" title="Mở rộng HUD">📊 ${formatTimeShort(summary.activeTimeSeconds)}</span>
+        <span style="cursor:pointer; font-weight:bold; color:#A78BFA;" id="mindful-hud-toggle" title="Mở rộng HUD">📊 ${formatTimeShort(summary.activeSeconds)}</span>
         ${sessionBadge}
         ${isPomActive && pomLabel ? `<span style="color:#06B6D4; font-size:10px; font-weight:700;">${pomLabel}</span>` : ""}
       `;
@@ -219,7 +220,7 @@ export class HUDManager {
     let extraStats = "";
     if (this.isYT) {
       if (location.pathname.startsWith("/shorts")) {
-        const s = this.dayData.youtube.shortVideos;
+        const s = this.dayData.youtube.shorts;
         extraStats = `| Lướt: <b>${s.totalSwipes}</b> | Xem: <b style="color:#10B981">${s.validViews}</b> | Loop: <b style="color:#F59E0B">${s.loopViews}</b>`;
       } else {
         const l = this.dayData.youtube.longVideos;
@@ -234,8 +235,11 @@ export class HUDManager {
         const l = this.dayData.facebook.longVideos || { totalWatched: 0, usefulCount: 0, impulsiveCount: 0 };
         extraStats = `| Đã xem: <b>${l.totalWatched}</b> | Hữu ích: <b style="color:#10B981">${l.usefulCount || 0}</b>`;
       } else {
-        extraStats = `| Feed: <b style="color:#60A5FA">${summary.feedPostsScrolled}</b>`;
+        extraStats = `| Feed: <b style="color:#60A5FA">${this.dayData.facebook.feed?.feedPostsScrolled || 0}</b>`;
       }
+    } else if (this.isTT) {
+      const s = this.dayData.tiktok?.shorts || { totalSwipes: 0, loopViews: 0 };
+      extraStats = `| TikTok: <b>${s.totalSwipes}</b> | Loop: <b style="color:#F59E0B">${s.loopViews}</b>`;
     }
 
     const devBtn = this.isDevMode

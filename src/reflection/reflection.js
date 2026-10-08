@@ -11,7 +11,7 @@ function getTodayKey() {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return `stats_${year}-${month}-${day}`;
 }
 
 function formatDuration(seconds) {
@@ -36,10 +36,10 @@ function renderStats(data) {
   const fbSummary = data.facebook?.summary || {};
   const ytLong = data.youtube?.longVideos || { totalWatched: 0, impulsiveCount: 0, usefulCount: 0 };
   const fbLong = data.facebook?.longVideos || { totalWatched: 0, impulsiveCount: 0, usefulCount: 0 };
-  const ytShort = data.youtube?.shortVideos || { totalSwipes: 0 };
+  const ytShort = data.youtube?.shorts || data.youtube?.shortVideos || { totalSwipes: 0 };
   const fbReels = data.facebook?.reels || { totalSwipes: 0 };
 
-  const totalActive = (ytSummary.activeTimeSeconds || 0) + (fbSummary.activeTimeSeconds || 0);
+  const totalActive = (ytSummary.activeSeconds ?? ytSummary.activeTimeSeconds ?? 0) + (fbSummary.activeSeconds ?? fbSummary.activeTimeSeconds ?? 0);
   const activeEl = document.getElementById("stat-total-active");
   if (activeEl) activeEl.textContent = formatDuration(totalActive);
 
@@ -70,12 +70,9 @@ function renderStats(data) {
   if (barUseful) barUseful.style.width = `${usefulPct}%`;
   if (barDistract) barDistract.style.width = `${distractPct + restPct}%`;
 
-  // Phân loại nội dung
-  const allDetails = [
-    ...(ytLong.details || []),
-    ...(fbLong.details || [])
-  ];
-  renderCategories(allDetails);
+  // Phân loại nội dung từ watchedVideos
+  const watchedVideos = Array.isArray(data.watchedVideos) ? data.watchedVideos : [];
+  renderCategories(watchedVideos);
 }
 
 function renderCategories(details) {
@@ -94,9 +91,10 @@ function renderCategories(details) {
     const cat = item.category || "Khác";
     if (!counts[cat]) counts[cat] = { total: 0, useful: 0, watchedSec: 0 };
     counts[cat].total++;
-    if (item.isUseful) counts[cat].useful++;
-    counts[cat].watchedSec += item.watchedSeconds || 0;
-    if (item.isUseful) totalUsefulSec += item.watchedSeconds || 0;
+    const isUseful = item.category === "Mục tiêu" || item.isUseful || (item.completionPct && item.completionPct >= 80);
+    if (isUseful) counts[cat].useful++;
+    counts[cat].watchedSec += item.durationSeconds || item.watchedSeconds || 0;
+    if (isUseful) totalUsefulSec += item.durationSeconds || item.watchedSeconds || 0;
   });
 
   const sorted = Object.entries(counts).sort((a, b) => b[1].total - a[1].total);
@@ -381,7 +379,7 @@ function setupSaveButton() {
     // 1. Lưu vào Storage
     chrome.storage.local.get([todayKey, "app_config"], (result) => {
       const existing = result[todayKey] || currentDayData || {};
-      existing.reflection = reflection;
+      existing.reflection = Object.assign(existing.reflection || {}, reflection);
 
       const payload = {};
       payload[todayKey] = existing;
@@ -430,7 +428,7 @@ function setupSaveButton() {
 
 document.addEventListener("DOMContentLoaded", () => {
   const dateBadge = document.getElementById("today-date");
-  if (dateBadge) dateBadge.textContent = todayKey;
+  if (dateBadge) dateBadge.textContent = todayKey.replace("stats_", "");
 
   setupRatingStars();
   updateStarsUI();
@@ -440,17 +438,17 @@ document.addEventListener("DOMContentLoaded", () => {
   // Nạp toàn bộ dữ liệu ngày, đề xuất từ khóa, persona và pet state
   chrome.storage.local.get([
     todayKey,
-    "suggested_keywords",
-    "user_persona",
-    "petState",
+    "app_config",
     "pet_state"
   ], (res) => {
     const dayData = res[todayKey] || {};
+    const appConfig = res.app_config || {};
+    const petState = res.pet_state || {};
     renderStats(dayData);
     loadExistingReflection(dayData);
 
-    renderSuggestedKeywords(res.suggested_keywords || []);
-    renderPersona(res.user_persona, res.petState || res.pet_state);
+    renderSuggestedKeywords(appConfig.suggestedKeywords || []);
+    renderPersona(petState.userPersona, petState);
   });
 });
 
@@ -460,13 +458,12 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     if (changes[todayKey]) {
       renderStats(changes[todayKey].newValue || {});
     }
-    if (changes.suggested_keywords) {
-      renderSuggestedKeywords(changes.suggested_keywords.newValue || []);
+    if (changes.app_config) {
+      renderSuggestedKeywords(changes.app_config.newValue?.suggestedKeywords || []);
     }
-    if (changes.user_persona || changes.petState || changes.pet_state) {
-      chrome.storage.local.get(["user_persona", "petState", "pet_state"], (res) => {
-        renderPersona(res.user_persona, res.petState || res.pet_state);
-      });
+    if (changes.pet_state) {
+      const pet = changes.pet_state.newValue || {};
+      renderPersona(pet.userPersona, pet);
     }
   }
 });

@@ -1104,6 +1104,32 @@ tài chính" style="width:100%;box-sizing:border-box;background:rgba(0,0,0,0.3);
       </div>
     </div>
 
+    <!-- Firebase Sync & Android App Card -->
+    <div class="card" style="border: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.06);">
+      <div class="card-header">
+        <span class="card-title" style="color:#6EE7B7;">🔗 Đồng Bộ Firebase & Android App</span>
+      </div>
+      <div style="font-size:10px; color:var(--text-secondary); margin-bottom:10px; line-height:1.4;">
+        Đồng bộ 2 chiều dữ liệu lướt và năng lượng Pet với ứng dụng Android qua mã Sync Code cá nhân.
+      </div>
+
+      <div style="margin-bottom:10px;">
+        <label style="font-size:11px; font-weight:700; color:#E0E7FF; display:block; margin-bottom:4px;">🔑 Mã Sync Code (6 ký tự):</label>
+        <div style="display:flex; gap:6px;">
+          <input type="text" id="cfg-sync-code" placeholder="VD: DEMO01" maxlength="12" style="flex:1; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); border-radius:6px; color:#fff; padding:6px 10px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:1px;">
+          <button id="btn-test-firebase-sync" type="button" style="background:rgba(16,185,129,0.25); border:1px solid rgba(16,185,129,0.5); color:#6EE7B7; font-size:11px; font-weight:700; padding:6px 12px; border-radius:6px; cursor:pointer;">Kiểm tra</button>
+        </div>
+        <div id="firebase-sync-status" style="font-size:10px; color:var(--text-muted); margin-top:4px;">Chưa kết nối</div>
+      </div>
+
+      <div>
+        <label style="font-size:11px; font-weight:700; color:#E0E7FF; display:flex; align-items:center; gap:6px; cursor:pointer;">
+          <input type="checkbox" id="cfg-auto-sync" checked style="accent-color:#10B981; cursor:pointer;">
+          <span>Tự động đồng bộ lên Cloud mỗi khi có thay đổi</span>
+        </label>
+      </div>
+    </div>
+
     <!-- Save Config Button & Notification Toast -->
     <div style="margin-bottom:10px;">
       <button id="btn-save-cfg" style="width:100%; background:linear-gradient(135deg, #10B981, #059669); border:none; color:#fff; font-weight:700; padding:8px 0; border-radius:8px; cursor:pointer; font-size:12px; box-shadow:0 2px 10px rgba(16,185,129,0.3);">
