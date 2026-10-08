@@ -138,3 +138,28 @@ export function cycleCategory(currentCategory) {
   }
 }
 
+// Danh sách 4 tùy chọn nhãn chuẩn
+export const CATEGORY_OPTIONS = [
+  { key: "Mục tiêu", label: "Mục tiêu", icon: "🎯", badgeClass: "badge-audit-goal" },
+  { key: "Giải trí", label: "Giải trí", icon: "☕", badgeClass: "badge-audit-leisure" },
+  { key: "Lạc lối", label: "Lạc lối", icon: "🌀", badgeClass: "badge-audit-distraction" },
+  { key: "Chưa rõ", label: "Chưa rõ", icon: "⏳", badgeClass: "badge-audit-unclassified" }
+];
+
+// Danh sách từ khóa mặc định đồng bộ 100% với Android App
+export const DEFAULT_TARGET_KEYWORDS = [
+  "lập trình", "tiếng anh", "kỹ năng", "sách", "học", "phát triển", "tài chính", "công nghệ"
+];
+
+export const DEFAULT_LEISURE_KEYWORDS = [
+  "nhạc", "music", "song", "chill", "relax", "vlog", "du lịch", "travel",
+  "ẩm thực", "nấu ăn", "food", "nấu", "thể thao", "bóng đá", "football",
+  "game", "gaming", "hài", "funny", "phim", "movie", "review phim", "hoạt hình", "anime"
+];
+
+export const DEFAULT_DISTRACTION_KEYWORDS = [
+  "drama", "phốt", "bóc phốt", "đại chiến", "scandal", "lộ clip", "sốc",
+  "kinh hoàng", "hài bựa", "hài nhảm", "cờ bạc", "tài xỉu", "gái xinh nhảy",
+  "khoe thân", "trend tiktok", "thách thức 24h", "chơi khăm", "prank", "reaction hài"
+];
+

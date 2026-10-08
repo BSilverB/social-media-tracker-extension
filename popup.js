@@ -11,7 +11,11 @@ import {
 
 import {
   normalizeCategory,
-  cycleCategory
+  cycleCategory,
+  CATEGORY_OPTIONS,
+  DEFAULT_TARGET_KEYWORDS,
+  DEFAULT_LEISURE_KEYWORDS,
+  DEFAULT_DISTRACTION_KEYWORDS
 } from "./src/content/modules/keyword-filter.js";
 
 // Lấy ngày hiện tại theo giờ địa phương dạng stats_YYYY-MM-DD
@@ -419,10 +423,92 @@ function renderCategories(details) {
 
 // ─── Nhật Ký Nội Dung Hôm Nay (Popup Watch Audit Log) ─────────────────────────
 
-function renderPopupAuditLog(data) {
-  const container = document.getElementById("popup-audit-videos-list");
-  if (!container) return;
+let currentAuditFilter = "all";
+let currentTargetVideoForPopover = null;
+let currentDayCachedData = null;
 
+function setupPopupAuditFilterTabs() {
+  const filterBar = document.getElementById("popup-audit-filter-bar");
+  if (!filterBar) return;
+
+  filterBar.addEventListener("click", (e) => {
+    const tabBtn = e.target.closest(".audit-filter-tab");
+    if (!tabBtn) return;
+
+    currentAuditFilter = tabBtn.getAttribute("data-filter") || "all";
+    filterBar.querySelectorAll(".audit-filter-tab").forEach(b => b.classList.remove("active"));
+    tabBtn.classList.add("active");
+
+    if (currentDayCachedData) {
+      renderPopupAuditVideosList(currentDayCachedData);
+    }
+  });
+}
+
+function setupCategoryPopover() {
+  const popover = document.getElementById("category-picker-popover");
+  if (!popover) return;
+
+  // Xử lý chọn nhãn từ Popover
+  popover.addEventListener("click", (e) => {
+    const item = e.target.closest(".popover-item");
+    if (!item || !currentTargetVideoForPopover) return;
+
+    const newCat = item.getAttribute("data-cat");
+    const vid = currentTargetVideoForPopover;
+    vid.category = newCat;
+    vid.userOverridden = true;
+
+    const todayKey = getTodayKey();
+    chrome.storage.local.get([todayKey], (res) => {
+      const storedDay = res[todayKey] || currentDayCachedData || {};
+      if (Array.isArray(storedDay.watchedVideos)) {
+        const target = storedDay.watchedVideos.find(v => v.id === vid.id || (v.title === vid.title && v.timestamp === vid.timestamp));
+        if (target) {
+          target.category = newCat;
+          target.userOverridden = true;
+        }
+      }
+      chrome.storage.local.set({ [todayKey]: storedDay }, () => {
+        closeCategoryPopover();
+        renderPopupAuditLog(storedDay);
+        renderCategories(storedDay.watchedVideos || []);
+      });
+    });
+  });
+
+  // Đóng popover khi bấm ra ngoài
+  document.addEventListener("click", (e) => {
+    if (!popover.contains(e.target) && !e.target.closest(".popup-audit-badge")) {
+      closeCategoryPopover();
+    }
+  });
+}
+
+function openCategoryPopover(badgeEl, vid) {
+  const popover = document.getElementById("category-picker-popover");
+  if (!popover) return;
+
+  currentTargetVideoForPopover = vid;
+  const rect = badgeEl.getBoundingClientRect();
+
+  popover.style.display = "block";
+  // Căn chỉnh vị trí popover ngay bên dưới/trên badge
+  const topPos = rect.bottom + window.scrollY + 4;
+  const leftPos = Math.max(10, Math.min(window.innerWidth - 130, rect.right - 110 + window.scrollX));
+
+  popover.style.top = `${topPos}px`;
+  popover.style.left = `${leftPos}px`;
+}
+
+function closeCategoryPopover() {
+  const popover = document.getElementById("category-picker-popover");
+  if (popover) popover.style.display = "none";
+  currentTargetVideoForPopover = null;
+}
+
+function renderPopupAuditLog(data) {
+  currentDayCachedData = data;
   const rawVideos = Array.isArray(data.watchedVideos) ? data.watchedVideos : [];
 
   // Lọc video xem sâu (Shorts/Reels >= 2s hoặc video dài không impulsive / completion / >= 180s)
@@ -456,6 +542,7 @@ function renderPopupAuditLog(data) {
 
   const deepCountEl = document.getElementById("popup-audit-deep-count");
   const impulsiveCountEl = document.getElementById("popup-audit-impulsive-count");
+  const tabAllCount = document.getElementById("popup-audit-tab-all-count");
   const goalEl = document.getElementById("popup-audit-count-goal");
   const leisureEl = document.getElementById("popup-audit-count-leisure");
   const distEl = document.getElementById("popup-audit-count-distraction");
@@ -465,6 +552,7 @@ function renderPopupAuditLog(data) {
 
   if (deepCountEl) deepCountEl.textContent = deepVideos.length;
   if (impulsiveCountEl) impulsiveCountEl.textContent = totalImpulsive;
+  if (tabAllCount) tabAllCount.textContent = deepVideos.length;
   if (goalEl) goalEl.textContent = countGoal;
   if (leisureEl) leisureEl.textContent = countLeisure;
   if (distEl) distEl.textContent = countDistraction;
@@ -479,13 +567,37 @@ function renderPopupAuditLog(data) {
     }
   }
 
-  if (deepVideos.length === 0) {
-    container.innerHTML = `<div style="font-size:11px; color:#64748B; text-align:center; padding:6px 0;">Chưa có video xem sâu nào hôm nay.</div>`;
+  renderPopupAuditVideosList(data);
+}
+
+function renderPopupAuditVideosList(data) {
+  const container = document.getElementById("popup-audit-videos-list");
+  if (!container) return;
+
+  const rawVideos = Array.isArray(data.watchedVideos) ? data.watchedVideos : [];
+  const deepVideos = rawVideos.filter(v => {
+    if (v.contentType === "shorts" || v.contentType === "reels") {
+      return (v.watchedSeconds || 0) >= 2;
+    }
+    return v.isCompletion || (v.watchedSeconds || 0) >= 180 || !v.isImpulsive;
+  });
+
+  // Lọc theo Tab được chọn
+  const filtered = deepVideos.filter(v => {
+    if (currentAuditFilter === "all") return true;
+    return normalizeCategory(v.category) === currentAuditFilter;
+  });
+
+  if (filtered.length === 0) {
+    const emptyMsg = currentAuditFilter === "all"
+      ? "Chưa có video xem sâu nào hôm nay."
+      : `Không có video nào thuộc nhóm "${currentAuditFilter}".`;
+    container.innerHTML = `<div style="font-size:11px; color:#64748B; text-align:center; padding:12px 0;">${emptyMsg}</div>`;
     return;
   }
 
   container.innerHTML = "";
-  deepVideos.forEach(vid => {
+  filtered.forEach(vid => {
     const normCat = normalizeCategory(vid.category);
     let badgeClass = "badge-audit-unclassified";
     let badgeIcon = "⏳";
@@ -514,31 +626,15 @@ function renderPopupAuditLog(data) {
     const rightEl = document.createElement("div");
     rightEl.style.cssText = "display:flex; align-items:center; gap:6px; flex-shrink:0;";
 
+    // Badge phân loại - Bấm hiện Popover 4 lựa chọn
     const badgeEl = document.createElement("span");
     badgeEl.className = `popup-audit-badge ${badgeClass}`;
-    badgeEl.textContent = `${badgeIcon} ${normCat}`;
-    badgeEl.title = "Bấm để đổi nhãn nhanh (Mục tiêu ➔ Giải trí ➔ Lạc lối ➔ Chưa rõ)";
+    badgeEl.textContent = `${badgeIcon} ${normCat} ▾`;
+    badgeEl.title = "Bấm để chọn phân loại nội dung";
 
-    badgeEl.addEventListener("click", () => {
-      const nextCat = cycleCategory(vid.category);
-      vid.category = nextCat;
-      vid.userOverridden = true;
-
-      const todayKey = getTodayKey();
-      chrome.storage.local.get([todayKey], (res) => {
-        const storedDay = res[todayKey] || data;
-        if (Array.isArray(storedDay.watchedVideos)) {
-          const target = storedDay.watchedVideos.find(v => v.id === vid.id || (v.title === vid.title && v.timestamp === vid.timestamp));
-          if (target) {
-            target.category = nextCat;
-            target.userOverridden = true;
-          }
-        }
-        chrome.storage.local.set({ [todayKey]: storedDay }, () => {
-          renderPopupAuditLog(storedDay);
-          renderCategories(storedDay.watchedVideos || []);
-        });
-      });
+    badgeEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openCategoryPopover(badgeEl, vid);
     });
 
     const durEl = document.createElement("span");
@@ -572,6 +668,152 @@ function setupPopupAuditLogToggle() {
     if (arrow) {
       arrow.style.transform = isHidden ? "rotate(0deg)" : "rotate(-90deg)";
     }
+  });
+}
+
+// ─── Cấu hình Bộ Lọc Từ Khóa (AI & Máy Cục Bộ) trong Cài đặt ─────────────────
+
+let currentKwCategory = "target"; // "target" | "leisure" | "distraction"
+
+function setupKeywordFilterSettings() {
+  const tabTarget = document.getElementById("kw-tab-target");
+  const tabLeisure = document.getElementById("kw-tab-leisure");
+  const tabDistract = document.getElementById("kw-tab-distraction");
+  const inputNew = document.getElementById("kw-input-new");
+  const btnAdd = document.getElementById("kw-btn-add");
+  const btnReset = document.getElementById("kw-btn-reset-default");
+
+  if (!tabTarget || !inputNew || !btnAdd) return;
+
+  const setTab = (cat) => {
+    currentKwCategory = cat;
+    [tabTarget, tabLeisure, tabDistract].forEach(b => b.classList.remove("active"));
+    if (cat === "target") tabTarget.classList.add("active");
+    if (cat === "leisure") tabLeisure.classList.add("active");
+    if (cat === "distraction") tabDistract.classList.add("active");
+    renderKeywordSettings();
+  };
+
+  tabTarget.addEventListener("click", () => setTab("target"));
+  tabLeisure.addEventListener("click", () => setTab("leisure"));
+  tabDistract.addEventListener("click", () => setTab("distraction"));
+
+  const handleAddKeyword = () => {
+    const text = inputNew.value.trim();
+    if (!text) return;
+
+    // Cho phép nhập nhiều từ khóa cách nhau bởi dấu phẩy
+    const wordsToAdd = text.split(",").map(w => w.trim().toLowerCase()).filter(w => w.length > 0);
+    if (wordsToAdd.length === 0) return;
+
+    chrome.storage.local.get(["app_config"], (res) => {
+      const config = res.app_config || {};
+      config.keywords = config.keywords || {
+        target: [...DEFAULT_TARGET_KEYWORDS],
+        leisure: [...DEFAULT_LEISURE_KEYWORDS],
+        distraction: [...DEFAULT_DISTRACTION_KEYWORDS]
+      };
+
+      const list = config.keywords[currentKwCategory] || [];
+      wordsToAdd.forEach(w => {
+        if (!list.includes(w)) list.push(w);
+      });
+      config.keywords[currentKwCategory] = list;
+
+      chrome.storage.local.set({ app_config: config }, () => {
+        inputNew.value = "";
+        renderKeywordSettings();
+      });
+    });
+  };
+
+  btnAdd.addEventListener("click", handleAddKeyword);
+  inputNew.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddKeyword();
+    }
+  });
+
+  if (btnReset) {
+    btnReset.addEventListener("click", () => {
+      if (confirm("Khôi phục toàn bộ từ khóa (Mục tiêu, Giải trí, Lạc lối) về danh sách mặc định ban đầu?")) {
+        chrome.storage.local.get(["app_config"], (res) => {
+          const config = res.app_config || {};
+          config.keywords = {
+            target: [...DEFAULT_TARGET_KEYWORDS],
+            leisure: [...DEFAULT_LEISURE_KEYWORDS],
+            distraction: [...DEFAULT_DISTRACTION_KEYWORDS]
+          };
+          chrome.storage.local.set({ app_config: config }, () => {
+            renderKeywordSettings();
+          });
+        });
+      }
+    });
+  }
+
+  renderKeywordSettings();
+}
+
+function renderKeywordSettings() {
+  const container = document.getElementById("kw-tags-container");
+  const countTarget = document.getElementById("kw-count-target");
+  const countLeisure = document.getElementById("kw-count-leisure");
+  const countDistract = document.getElementById("kw-count-distraction");
+  if (!container) return;
+
+  chrome.storage.local.get(["app_config"], (res) => {
+    const config = res.app_config || {};
+    const kw = config.keywords || {
+      target: [...DEFAULT_TARGET_KEYWORDS],
+      leisure: [...DEFAULT_LEISURE_KEYWORDS],
+      distraction: [...DEFAULT_DISTRACTION_KEYWORDS]
+    };
+
+    const targetList = kw.target || DEFAULT_TARGET_KEYWORDS;
+    const leisureList = kw.leisure || DEFAULT_LEISURE_KEYWORDS;
+    const distractList = kw.distraction || DEFAULT_DISTRACTION_KEYWORDS;
+
+    if (countTarget) countTarget.textContent = `(${targetList.length})`;
+    if (countLeisure) countLeisure.textContent = `(${leisureList.length})`;
+    if (countDistract) countDistract.textContent = `(${distractList.length})`;
+
+    const activeList = currentKwCategory === "target"
+      ? targetList
+      : (currentKwCategory === "leisure" ? leisureList : distractList);
+
+    const tagClass = currentKwCategory === "target"
+      ? "kw-tag-target"
+      : (currentKwCategory === "leisure" ? "kw-tag-leisure" : "kw-tag-distraction");
+
+    if (activeList.length === 0) {
+      container.innerHTML = `<div style="font-size:11px; color:var(--text-muted); text-align:center; width:100%; padding:10px 0;">Chưa có từ khóa nào. Nhập và bấm + Thêm ở trên.</div>`;
+      return;
+    }
+
+    container.innerHTML = "";
+    activeList.forEach((word) => {
+      const tagEl = document.createElement("span");
+      tagEl.className = `kw-tag ${tagClass}`;
+      tagEl.textContent = word;
+
+      const btnRemove = document.createElement("button");
+      btnRemove.className = "kw-tag-remove";
+      btnRemove.textContent = "✕";
+      btnRemove.title = `Xóa từ khóa "${word}"`;
+      btnRemove.addEventListener("click", () => {
+        const updatedList = activeList.filter(w => w !== word);
+        config.keywords = config.keywords || {};
+        config.keywords[currentKwCategory] = updatedList;
+        chrome.storage.local.set({ app_config: config }, () => {
+          renderKeywordSettings();
+        });
+      });
+
+      tagEl.appendChild(btnRemove);
+      container.appendChild(tagEl);
+    });
   });
 }
 
@@ -1951,6 +2193,9 @@ document.addEventListener("DOMContentLoaded", () => {
   setupReflectionButton();
   setupDashboardButton();
   setupPopupAuditLogToggle();
+  setupPopupAuditFilterTabs();
+  setupCategoryPopover();
+  setupKeywordFilterSettings();
   setupDevMode();
   updateDashboard();
   updatePetBanner();

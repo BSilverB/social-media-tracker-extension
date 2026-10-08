@@ -154,10 +154,88 @@ function renderCategories(details) {
 
 // ─── Nhật Ký Nội Dung Hôm Nay (Watch Audit Log) ──────────────────────────────
 
-function renderAuditLog(data) {
-  const container = document.getElementById("audit-videos-list");
-  if (!container) return;
+let currentAuditFilter = "all";
+let currentTargetVideoForPopover = null;
+let currentDayCachedData = null;
 
+function setupReflectionAuditFilterTabs() {
+  const filterBar = document.getElementById("audit-filter-bar");
+  if (!filterBar) return;
+
+  filterBar.addEventListener("click", (e) => {
+    const tabBtn = e.target.closest(".audit-filter-tab");
+    if (!tabBtn) return;
+
+    currentAuditFilter = tabBtn.getAttribute("data-filter") || "all";
+    filterBar.querySelectorAll(".audit-filter-tab").forEach(b => b.classList.remove("active"));
+    tabBtn.classList.add("active");
+
+    if (currentDayCachedData) {
+      renderAuditVideosList(currentDayCachedData);
+    }
+  });
+}
+
+function setupReflectionCategoryPopover() {
+  const popover = document.getElementById("reflection-category-popover");
+  if (!popover) return;
+
+  popover.addEventListener("click", (e) => {
+    const item = e.target.closest(".popover-item");
+    if (!item || !currentTargetVideoForPopover) return;
+
+    const newCat = item.getAttribute("data-cat");
+    const vid = currentTargetVideoForPopover;
+    vid.category = newCat;
+    vid.userOverridden = true;
+
+    chrome.storage.local.get([todayKey], (res) => {
+      const storedDay = res[todayKey] || currentDayCachedData || {};
+      if (Array.isArray(storedDay.watchedVideos)) {
+        const target = storedDay.watchedVideos.find(v => v.id === vid.id || (v.title === vid.title && v.timestamp === vid.timestamp));
+        if (target) {
+          target.category = newCat;
+          target.userOverridden = true;
+        }
+      }
+      chrome.storage.local.set({ [todayKey]: storedDay }, () => {
+        closeReflectionCategoryPopover();
+        renderAuditLog(storedDay);
+        renderCategories(storedDay.watchedVideos || []);
+      });
+    });
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!popover.contains(e.target) && !e.target.closest(".audit-badge")) {
+      closeReflectionCategoryPopover();
+    }
+  });
+}
+
+function openReflectionCategoryPopover(badgeEl, vid) {
+  const popover = document.getElementById("reflection-category-popover");
+  if (!popover) return;
+
+  currentTargetVideoForPopover = vid;
+  const rect = badgeEl.getBoundingClientRect();
+
+  popover.style.display = "block";
+  const topPos = rect.bottom + window.scrollY + 4;
+  const leftPos = Math.max(10, Math.min(window.innerWidth - 130, rect.right - 120 + window.scrollX));
+
+  popover.style.top = `${topPos}px`;
+  popover.style.left = `${leftPos}px`;
+}
+
+function closeReflectionCategoryPopover() {
+  const popover = document.getElementById("reflection-category-popover");
+  if (popover) popover.style.display = "none";
+  currentTargetVideoForPopover = null;
+}
+
+function renderAuditLog(data) {
+  currentDayCachedData = data;
   const rawVideos = Array.isArray(data.watchedVideos) ? data.watchedVideos : [];
 
   // Phân loại video xem sâu (>80% thời lượng hoặc >= 180s hoặc Shorts/Reels >= 2s)
@@ -177,7 +255,7 @@ function renderAuditLog(data) {
   const videoImpCount = rawVideos.filter(v => v.isImpulsive || (v.watchedSeconds || 0) < 2).length;
   const totalImpulsive = Math.max(ytImpulsive + fbImpulsive + ttImpulsive + ytLongImp + fbLongImp, videoImpCount);
 
-  // Đếm theo 4 nhãn chuẩn: Mục tiêu, Giải trí, Lạc lối, Chưa rõ
+  // Đếm theo 4 nhãn chuẩn
   let countGoal = 0;
   let countLeisure = 0;
   let countDistraction = 0;
@@ -194,6 +272,7 @@ function renderAuditLog(data) {
   // Cập nhật DOM các bộ đếm
   const deepCountEl = document.getElementById("audit-deep-count");
   const impulsiveCountEl = document.getElementById("audit-impulsive-count");
+  const tabAllCount = document.getElementById("audit-tab-all-count");
   const goalEl = document.getElementById("audit-count-goal");
   const leisureEl = document.getElementById("audit-count-leisure");
   const distEl = document.getElementById("audit-count-distraction");
@@ -203,6 +282,7 @@ function renderAuditLog(data) {
 
   if (deepCountEl) deepCountEl.textContent = deepVideos.length;
   if (impulsiveCountEl) impulsiveCountEl.textContent = totalImpulsive;
+  if (tabAllCount) tabAllCount.textContent = deepVideos.length;
   if (goalEl) goalEl.textContent = countGoal;
   if (leisureEl) leisureEl.textContent = countLeisure;
   if (distEl) distEl.textContent = countDistraction;
@@ -217,13 +297,37 @@ function renderAuditLog(data) {
     }
   }
 
-  if (deepVideos.length === 0) {
-    container.innerHTML = `<div class="empty">Chưa có video xem sâu nào được ghi nhận hôm nay.</div>`;
+  renderAuditVideosList(data);
+}
+
+function renderAuditVideosList(data) {
+  const container = document.getElementById("audit-videos-list");
+  if (!container) return;
+
+  const rawVideos = Array.isArray(data.watchedVideos) ? data.watchedVideos : [];
+  const deepVideos = rawVideos.filter(v => {
+    if (v.contentType === "shorts" || v.contentType === "reels") {
+      return (v.watchedSeconds || 0) >= 2;
+    }
+    return v.isCompletion || (v.watchedSeconds || 0) >= 180 || !v.isImpulsive;
+  });
+
+  // Lọc theo Tab đang chọn
+  const filtered = deepVideos.filter(v => {
+    if (currentAuditFilter === "all") return true;
+    return normalizeCategory(v.category) === currentAuditFilter;
+  });
+
+  if (filtered.length === 0) {
+    const emptyMsg = currentAuditFilter === "all"
+      ? "Chưa có video xem sâu nào được ghi nhận hôm nay."
+      : `Không có video nào thuộc nhóm "${currentAuditFilter}".`;
+    container.innerHTML = `<div class="empty">${emptyMsg}</div>`;
     return;
   }
 
   container.innerHTML = "";
-  deepVideos.forEach(vid => {
+  filtered.forEach(vid => {
     const normCat = normalizeCategory(vid.category);
     let badgeClass = "audit-badge-unclassified";
     let badgeIcon = "⏳";
@@ -252,31 +356,15 @@ function renderAuditLog(data) {
     const rightEl = document.createElement("div");
     rightEl.className = "audit-item-right";
 
-    // Badge phân loại 1-chạm (Mục tiêu -> Giải trí -> Lạc lối -> Chưa rõ)
+    // Badge phân loại - Bấm hiện Popover chọn nhanh
     const badgeEl = document.createElement("span");
     badgeEl.className = `audit-badge ${badgeClass}`;
-    badgeEl.textContent = `${badgeIcon} ${normCat}`;
-    badgeEl.title = "Bấm để đổi nhãn nhanh (Mục tiêu ➔ Giải trí ➔ Lạc lối ➔ Chưa rõ)";
+    badgeEl.textContent = `${badgeIcon} ${normCat} ▾`;
+    badgeEl.title = "Bấm để chọn phân loại nội dung";
 
-    badgeEl.addEventListener("click", () => {
-      const nextCat = cycleCategory(vid.category);
-      vid.category = nextCat;
-      vid.userOverridden = true;
-
-      chrome.storage.local.get([todayKey], (res) => {
-        const storedDay = res[todayKey] || data;
-        if (Array.isArray(storedDay.watchedVideos)) {
-          const target = storedDay.watchedVideos.find(v => v.id === vid.id || (v.title === vid.title && v.timestamp === vid.timestamp));
-          if (target) {
-            target.category = nextCat;
-            target.userOverridden = true;
-          }
-        }
-        chrome.storage.local.set({ [todayKey]: storedDay }, () => {
-          renderAuditLog(storedDay);
-          renderCategories(storedDay.watchedVideos || []);
-        });
-      });
+    badgeEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openReflectionCategoryPopover(badgeEl, vid);
     });
 
     const durEl = document.createElement("span");
@@ -607,6 +695,9 @@ document.addEventListener("DOMContentLoaded", () => {
   updateStarsUI();
   setupSaveButton();
   setupEvolveFilterButton();
+  setupAuditLogToggle();
+  setupReflectionAuditFilterTabs();
+  setupReflectionCategoryPopover();
 
   // Nạp toàn bộ dữ liệu ngày, đề xuất từ khóa, persona và pet state
   chrome.storage.local.get([
