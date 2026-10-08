@@ -433,9 +433,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  // 6. Chấp nhận từ khóa AI đề xuất vào targetKeywords
+  // 6. Chấp nhận từ khóa AI đề xuất vào bộ lọc (target, leisure, hoặc distraction)
   if (msg.type === "APPROVE_KEYWORD") {
-    handleApproveKeyword(msg.word).then(res => sendResponse(res));
+    handleApproveKeyword(msg.word, msg.category).then(res => sendResponse(res));
     return true;
   }
 
@@ -702,21 +702,22 @@ async function handleEvolveFilter() {
 }
 
 /**
- * Thêm từ khóa AI đề xuất vào target keywords
+ * Thêm từ khóa AI đề xuất vào bộ lọc tương ứng (target, leisure, hoặc distraction)
  */
-async function handleApproveKeyword(word) {
+async function handleApproveKeyword(word, category = "target") {
   if (!word) return { ok: false };
   const cleanWord = word.trim().toLowerCase();
+  const validCat = ["target", "leisure", "distraction"].includes(category) ? category : "target";
 
   return new Promise((resolve) => {
     chrome.storage.local.get(["app_config"], (res) => {
       const config = res.app_config || {};
       config.keywords = config.keywords || { target: [], leisure: [], distraction: [] };
-      const targets = config.keywords.target || [];
+      const list = config.keywords[validCat] || [];
 
-      if (!targets.map(k => k.toLowerCase()).includes(cleanWord)) {
-        targets.push(cleanWord);
-        config.keywords.target = targets;
+      if (!list.map(k => k.toLowerCase()).includes(cleanWord)) {
+        list.push(cleanWord);
+        config.keywords[validCat] = list;
       }
 
       // Xóa khỏi danh sách đề xuất
@@ -724,7 +725,7 @@ async function handleApproveKeyword(word) {
       config.suggestedKeywords = suggestions;
 
       chrome.storage.local.set({ app_config: config }, () => {
-        resolve({ ok: true, keywords: targets, suggestions });
+        resolve({ ok: true, keywords: config.keywords, suggestions, category: validCat });
       });
     });
   });

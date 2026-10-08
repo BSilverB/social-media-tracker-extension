@@ -205,7 +205,7 @@ async function loadData() {
       allStorageData = items || {};
       appConfig = allStorageData.app_config || {};
       petState = allStorageData.pet_state || {};
-      isDevMode = Boolean(allStorageData.devMode || allStorageData.dev_mode);
+      isDevMode = Boolean(allStorageData.dev_mode_enabled || allStorageData.devMode || allStorageData.dev_mode);
 
       // Hiển thị nút demo nếu đang ở chế độ Test
       const demoBtn = document.getElementById("btn-toggle-demo");
@@ -1421,6 +1421,32 @@ function setupEventListeners() {
       renderDonutChart(currentSummary);
     }
   });
+
+  // 6. Tự động phản hồi khi bật/tắt Test Mode trong Popup
+  if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener((changes, namespace) => {
+      if (namespace === "local") {
+        if (changes.dev_mode_enabled !== undefined || changes.devMode !== undefined || changes.dev_mode !== undefined) {
+          const newDevState = Boolean(
+            (changes.dev_mode_enabled ? changes.dev_mode_enabled.newValue : false) ||
+            (changes.devMode ? changes.devMode.newValue : false) ||
+            (changes.dev_mode ? changes.dev_mode.newValue : false)
+          );
+          isDevMode = newDevState;
+          const demoBtn = document.getElementById("btn-toggle-demo");
+          if (demoBtn) {
+            demoBtn.style.display = isDevMode ? "inline-flex" : "none";
+            if (!isDevMode && isDemoMode) {
+              isDemoMode = false;
+              demoBtn.classList.remove("active");
+              buildAvailableCycles();
+              renderCycleUI();
+            }
+          }
+        }
+      }
+    });
+  }
 }
 
 // ─── KHỞI TẠO DASHBOARD ───────────────────────────────────────────────────────

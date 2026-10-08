@@ -174,12 +174,16 @@ export async function extractSuggestedKeywords(titles, apiKey) {
   const sampleTitles = titles.slice(0, 20);
 
   const prompt = `Phân tích danh sách các tiêu đề video sau đây (những video người dùng đã xem mà bộ lọc hiện tại chưa bắt được).
-Tìm 2 đến 3 từ khóa đại diện (tiếng Việt hoặc tiếng Anh) có tính khái quát cao về nội dung học tập, công việc, kỹ năng hoặc giải trí hữu ích.
+Tìm 2 đến 4 từ khóa đại diện (tiếng Việt hoặc tiếng Anh) có tính khái quát cao và phân loại xem từ khóa đó nên thuộc nhóm nào:
+- "target" (Mục tiêu: học tập, công nghệ, kỹ năng, phát triển bản thân, tài chính, công việc)
+- "leisure" (Giải trí: ca nhạc, du lịch, vlog, ẩm thực, thể thao, game, phim ảnh lành mạnh)
+- "distraction" (Lạc lối: drama, giật gân, bóc phốt, cờ bạc, tin nhảm, câu view)
 Trả về định dạng JSON:
 {
   "keywords": [
     {
       "word": "từ khóa ngắn gọn (1-3 từ)",
+      "category": "target" | "leisure" | "distraction",
       "confidence": 85,
       "reason": "Lý do ngắn gọn bằng tiếng Việt dưới 12 từ"
     }
@@ -193,11 +197,16 @@ ${JSON.stringify(sampleTitles, null, 2)}`;
     const raw = await callGeminiApi(prompt, apiKey);
     const parsed = parseJsonFromText(raw);
     if (parsed && Array.isArray(parsed.keywords)) {
-      return parsed.keywords.map(k => ({
-        word: String(k.word || "").trim().toLowerCase(),
-        confidence: Math.min(100, Math.max(0, Number(k.confidence) || 70)),
-        reason: String(k.reason || "Từ khóa tiềm năng")
-      })).filter(k => k.word.length >= 2);
+      return parsed.keywords.map(k => {
+        let cat = String(k.category || "target").toLowerCase();
+        if (!["target", "leisure", "distraction"].includes(cat)) cat = "target";
+        return {
+          word: String(k.word || "").trim().toLowerCase(),
+          category: cat,
+          confidence: Math.min(100, Math.max(0, Number(k.confidence) || 70)),
+          reason: String(k.reason || "Từ khóa tiềm năng")
+        };
+      }).filter(k => k.word.length >= 2);
     }
     return [];
   } catch (err) {

@@ -533,7 +533,25 @@ function renderSuggestedKeywords(suggestions) {
     confSpan.className = "kw-badge-conf";
     confSpan.textContent = `${item.confidence || 80}% tin cậy`;
 
+    // Nhãn phân loại đề xuất (Mục tiêu / Giải trí / Lạc lối)
+    const catSpan = document.createElement("span");
+    catSpan.style.cssText = "font-size:10.5px; padding:2px 6px; border-radius:4px; font-weight:700;";
+    if (item.category === "leisure") {
+      catSpan.style.background = "rgba(245,158,11,0.2)";
+      catSpan.style.color = "#F59E0B";
+      catSpan.textContent = "☕ Giải trí";
+    } else if (item.category === "distraction") {
+      catSpan.style.background = "rgba(239,68,68,0.2)";
+      catSpan.style.color = "#EF4444";
+      catSpan.textContent = "⚠️ Lạc lối";
+    } else {
+      catSpan.style.background = "rgba(16,185,129,0.2)";
+      catSpan.style.color = "#10B981";
+      catSpan.textContent = "🎯 Mục tiêu";
+    }
+
     wordRow.appendChild(wordSpan);
+    wordRow.appendChild(catSpan);
     wordRow.appendChild(confSpan);
 
     const reasonSpan = document.createElement("span");
@@ -553,7 +571,11 @@ function renderSuggestedKeywords(suggestions) {
     btnApprove.addEventListener("click", () => {
       btnApprove.disabled = true;
       btnApprove.textContent = "Đang thêm...";
-      chrome.runtime.sendMessage({ type: "APPROVE_KEYWORD", word: item.word }, (res) => {
+      chrome.runtime.sendMessage({
+        type: "APPROVE_KEYWORD",
+        word: item.word,
+        category: item.category || "target"
+      }, (res) => {
         if (res && res.ok) {
           card.style.opacity = "0.4";
           card.style.pointerEvents = "none";
