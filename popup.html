@@ -291,6 +291,88 @@
       margin-top: 2px;
     }
 
+    /* Popup Watch Audit Log */
+    .popup-audit-pill {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 3px 7px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(0, 0, 0, 0.25);
+    }
+    .popup-audit-pill.audit-goal {
+      color: #10B981;
+      border-color: rgba(16, 185, 129, 0.3);
+      background: rgba(16, 185, 129, 0.08);
+    }
+    .popup-audit-pill.audit-leisure {
+      color: #F59E0B;
+      border-color: rgba(245, 158, 11, 0.3);
+      background: rgba(245, 158, 11, 0.08);
+    }
+    .popup-audit-pill.audit-distraction {
+      color: #EF4444;
+      border-color: rgba(239, 68, 68, 0.3);
+      background: rgba(239, 68, 68, 0.08);
+    }
+    .popup-audit-pill.audit-unclassified {
+      color: #94A3B8;
+      border-color: rgba(148, 163, 184, 0.3);
+      background: rgba(148, 163, 184, 0.08);
+    }
+    .popup-audit-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 11px;
+      transition: background 0.15s;
+    }
+    .popup-audit-item:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .popup-audit-badge {
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+      user-select: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .popup-audit-badge:hover {
+      transform: scale(1.05);
+      filter: brightness(1.2);
+    }
+    .badge-audit-goal {
+      background: rgba(16, 185, 129, 0.15);
+      color: #10B981;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .badge-audit-leisure {
+      background: rgba(245, 158, 11, 0.15);
+      color: #F59E0B;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    .badge-audit-distraction {
+      background: rgba(239, 68, 68, 0.15);
+      color: #EF4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .badge-audit-unclassified {
+      background: rgba(148, 163, 184, 0.15);
+      color: #94A3B8;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+    }
+
     /* Footer */
     .footer {
       display: flex;
@@ -390,7 +472,7 @@
   <div class="tabs-nav">
     <button class="tab-btn active" id="tab-yt" data-target="panel-yt">▶ YouTube</button>
     <button class="tab-btn" id="tab-fb" data-target="panel-fb">👥 Facebook</button>
-    <button class="tab-btn" id="tab-all" data-target="panel-all">📊 Tổng quan</button>
+    <button class="tab-btn" id="tab-all" data-target="panel-all">📊 Tổng quan & Báo Cáo</button>
     <button class="tab-btn" id="tab-cfg" data-target="panel-cfg">⚙️ Cài đặt</button>
     <button class="tab-btn" id="tab-dev" data-target="panel-dev" style="display: none; color:#F59E0B;">🧪 Test</button>
   </div>
@@ -633,38 +715,104 @@
     </div>
   </div>
 
-  <!-- PANEL 3: TỔNG QUAN -->
+  <!-- PANEL 3: TỔNG QUAN & BÁO CÁO TUẦN -->
   <div id="panel-all" class="tab-panel" style="display: none;">
+    <!-- 1. Hôm nay -->
     <div class="card">
       <div class="card-header">
-        <span class="card-title">🌟 Tổng thời gian 2 nền tảng</span>
+        <span class="card-title">🌟 Hôm Nay (Tổng Hợp)</span>
+        <span class="badge-info">Hôm nay</span>
       </div>
       <div class="time-grid">
         <div class="time-box">
-          <div class="time-label">Tổng thời gian Active</div>
+          <div class="time-label">Thời gian Active</div>
           <div id="total-active-time" class="time-value" style="color:#38BDF8">0m 0s</div>
         </div>
         <div class="time-box">
-          <div class="time-label">Tổng lượt tìm dopamine (F5)</div>
-          <div id="total-reloads" class="time-value" style="color:#EF4444">0</div>
+          <div class="time-label">Dopamine F5 / Reload</div>
+          <div id="total-reloads" class="time-value" style="color:#F59E0B">0</div>
+        </div>
+      </div>
+      <div class="stat-grid-2" style="margin-top: 8px;">
+        <div class="metric-pill">
+          <div class="metric-name">Tổng Shorts & Reels</div>
+          <div id="total-swipes-all" class="metric-number" style="color:#A78BFA">0</div>
+        </div>
+        <div class="metric-pill">
+          <div class="metric-name">Vòng lặp vô thức (Loop)</div>
+          <div id="total-loops-all" class="metric-number" style="color:#F87171">0</div>
         </div>
       </div>
     </div>
 
-    <div class="card">
+    <!-- 2. Nhật Ký Nội Dung Hôm Nay (Watch Audit Log) -->
+    <div class="card" id="popup-audit-log-card">
+      <div class="card-header" id="popup-audit-log-toggle" style="cursor: pointer; user-select: none;">
+        <span class="card-title">📖 Nhật ký hôm nay (<span id="popup-audit-deep-count">0</span> xem sâu • <span id="popup-audit-impulsive-count">0</span> lướt vội)</span>
+        <span id="popup-audit-arrow" style="font-size: 11px; transition: transform 0.2s;">▼</span>
+      </div>
+      <div id="popup-audit-log-body">
+        <!-- 4 Nhãn chuẩn: Mục tiêu, Giải trí, Lạc lối, Chưa rõ -->
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px;">
+          <div class="popup-audit-pill audit-goal">🎯 Mục tiêu: <b id="popup-audit-count-goal">0</b></div>
+          <div class="popup-audit-pill audit-leisure">☕ Giải trí: <b id="popup-audit-count-leisure">0</b></div>
+          <div class="popup-audit-pill audit-distraction">🌀 Lạc lối: <b id="popup-audit-count-distraction">0</b></div>
+          <div class="popup-audit-pill audit-unclassified">⏳ Chưa rõ: <b id="popup-audit-count-unclassified">0</b></div>
+        </div>
+        <!-- Banner lướt bốc đồng -->
+        <div id="popup-audit-impulsive-banner" style="display: none; background: rgba(239, 68, 68, 0.1); border: 1px dashed rgba(239, 68, 68, 0.3); color: #F87171; border-radius: 6px; padding: 5px 8px; font-size: 10px; margin-bottom: 8px; align-items: center; gap: 5px;">
+          ⚡ Đã lướt qua <b id="popup-audit-impulsive-text">0</b> video ngắn không xem (&lt; 2s)
+        </div>
+        <!-- Danh sách video xem sâu -->
+        <div id="popup-audit-videos-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 250px; overflow-y: auto; padding-right: 2px;">
+          <div style="font-size: 11px; color: #64748B; text-align: center; padding: 6px 0;">Chưa có video xem sâu nào hôm nay.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Báo cáo Xu hướng 7 Ngày (Tuần Này) -->
+    <div class="card" style="border: 1px solid rgba(139, 92, 246, 0.35); background: linear-gradient(135deg, rgba(20, 24, 45, 0.8), rgba(15, 23, 42, 0.9));">
       <div class="card-header">
-        <span class="card-title">⚡ Tổng số Shorts & Reels đã lướt</span>
+        <span class="card-title" style="color:#C4B5FD;">📈 Xu Hướng Chuyển Biến 7 Ngày</span>
+        <span id="popup-weekly-delta-badge" class="badge-info" style="background:rgba(16,185,129,0.2); color:#34D399; font-weight:700;">--</span>
       </div>
-      <div class="stat-grid-2">
-        <div class="metric-pill">
-          <div class="metric-name">Tổng video ngắn lướt</div>
-          <div id="total-swipes-all" class="metric-number" style="color:#A78BFA">0</div>
+
+      <!-- 3 Nhóm chỉ số cốt lõi thu nhỏ -->
+      <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px;">
+        <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:6px; text-align:center;">
+          <div style="font-size:9px; color:var(--text-muted); text-transform:uppercase;">Swipes (7N)</div>
+          <div id="popup-weekly-swipes" style="font-size:14px; font-weight:800; color:#A78BFA; margin-top:2px;">0</div>
+          <div id="popup-weekly-swipes-delta" style="font-size:9px; color:#34D399; font-weight:600;">--</div>
         </div>
-        <div class="metric-pill">
-          <div class="metric-name">Tổng vòng lặp vô thức (Loop)</div>
-          <div id="total-loops-all" class="metric-number" style="color:#F59E0B">0</div>
+
+        <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:6px; text-align:center;">
+          <div style="font-size:9px; color:var(--text-muted); text-transform:uppercase;">% Mục Tiêu</div>
+          <div id="popup-weekly-goal-pct" style="font-size:14px; font-weight:800; color:#10B981; margin-top:2px;">0%</div>
+          <div id="popup-weekly-goal-sub" style="font-size:9px; color:var(--text-muted);">Học tập</div>
+        </div>
+
+        <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:6px; text-align:center;">
+          <div style="font-size:9px; color:var(--text-muted); text-transform:uppercase;">Bỏ dở &lt;15%</div>
+          <div id="popup-weekly-skip-pct" style="font-size:14px; font-weight:800; color:#F87171; margin-top:2px;">0%</div>
+          <div id="popup-weekly-skip-sub" style="font-size:9px; color:var(--text-muted);">Mất kiên nhẫn</div>
         </div>
       </div>
+
+      <!-- Tóm tắt từ AI Coach -->
+      <div style="background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.25); border-radius:8px; padding:8px 10px; font-size:10.5px; line-height:1.45; color:#E2E8F0;">
+        <div style="font-weight:700; color:#C4B5FD; margin-bottom:3px; display:flex; align-items:center; gap:4px;">
+          <span>🤖 AI Reflection Coach:</span>
+        </div>
+        <div id="popup-weekly-coach-snippet">
+          Đang tổng hợp dữ liệu chuyển biến tâm lý 7 ngày qua...
+        </div>
+      </div>
+
+      <!-- Nút mở Báo Cáo Toàn Diện (Dashboard) -->
+      <button id="btn-popup-open-full-dashboard" type="button" style="width:100%; margin-top:10px; background:linear-gradient(135deg, var(--purple), #06B6D4); color:#fff; font-size:11px; font-weight:700; padding:9px 12px; border-radius:8px; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; box-shadow:0 3px 12px rgba(139,92,246,0.3); transition:all 0.2s;">
+        <span>📊 Mở Báo Cáo Phân Tích Chuyên Sâu</span>
+        <span style="font-size:13px;">↗</span>
+      </button>
     </div>
   </div>
 

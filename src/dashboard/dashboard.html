@@ -3,23 +3,31 @@
 
 <head>
   <meta charset="utf-8">
-  <title>Báo Cáo Phân Tích Xu Hướng — Mindful Tracker</title>
-  <meta name="description" content="Phân tích xu hướng dài hạn hành vi lướt mạng xã hội: Thời gian, Shorts/Reels, F5 Reload và Tỷ lệ hoàn thành mục tiêu">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Báo Cáo Phân Tích Xu Hướng & Tâm Lý — Mindful Tracker</title>
+  <meta name="description" content="Bản tổng kết hành vi chuyển biến tâm lý: từ nghiện vuốt vô thức sang chủ động kiểm soát. Thống kê theo tuần, tháng và phân tích chuyên sâu.">
   <style>
     :root {
       --bg: #080C14;
-      --card: rgba(15, 23, 42, 0.85);
-      --card-hover: rgba(22, 33, 62, 0.95);
+      --card: rgba(15, 23, 42, 0.88);
+      --card-hover: rgba(26, 38, 70, 0.95);
       --border: rgba(255, 255, 255, 0.08);
+      --border-accent: rgba(139, 92, 246, 0.35);
       --purple: #8B5CF6;
+      --purple-light: #A78BFA;
       --purple-glow: rgba(139, 92, 246, 0.35);
       --cyan: #06B6D4;
+      --cyan-light: #67E8F9;
       --green: #10B981;
+      --green-light: #34D399;
       --amber: #F59E0B;
+      --amber-light: #FBBF24;
       --red: #EF4444;
+      --red-light: #F87171;
       --text: #F1F5F9;
       --text-muted: #94A3B8;
       --text-dim: #64748B;
+      --gray-cat: #64748B;
     }
 
     * {
@@ -31,17 +39,18 @@
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       min-height: 100vh;
-      padding: 32px 20px;
+      padding: 28px 24px 60px 24px;
       background-image:
-        radial-gradient(ellipse at 15% 10%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
-        radial-gradient(ellipse at 85% 90%, rgba(6, 182, 212, 0.1) 0%, transparent 50%);
+        radial-gradient(ellipse at 15% 10%, rgba(139, 92, 246, 0.14) 0%, transparent 45%),
+        radial-gradient(ellipse at 85% 90%, rgba(6, 182, 212, 0.12) 0%, transparent 45%),
+        radial-gradient(ellipse at 50% 50%, rgba(16, 185, 129, 0.05) 0%, transparent 60%);
       user-select: none;
     }
 
     .container {
-      max-width: 980px;
+      max-width: 1120px;
       margin: 0 auto;
     }
 
@@ -58,32 +67,32 @@
     .app-branding {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 14px;
     }
 
     .brand-icon {
-      width: 42px;
-      height: 42px;
+      width: 44px;
+      height: 44px;
       background: linear-gradient(135deg, var(--purple), var(--cyan));
       border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 22px;
+      font-size: 24px;
       box-shadow: 0 4px 18px var(--purple-glow);
     }
 
     .brand-title {
-      font-size: 22px;
+      font-size: 23px;
       font-weight: 800;
       letter-spacing: -0.4px;
-      background: linear-gradient(135deg, #F8FAFC, #CBD5E1);
+      background: linear-gradient(135deg, #FFFFFF, #CBD5E1);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
 
     .brand-subtitle {
-      font-size: 12px;
+      font-size: 12.5px;
       color: var(--text-muted);
       margin-top: 2px;
     }
@@ -92,6 +101,7 @@
       display: flex;
       align-items: center;
       gap: 10px;
+      flex-wrap: wrap;
     }
 
     .btn {
@@ -122,35 +132,52 @@
     }
 
     .btn-primary:hover {
-      opacity: 0.92;
+      opacity: 0.94;
       transform: translateY(-1px);
     }
 
-    .btn-success {
-      background: rgba(16, 185, 129, 0.15);
-      border-color: rgba(16, 185, 129, 0.4);
-      color: #34D399;
+    .btn-demo {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: rgba(245, 158, 11, 0.4);
+      color: #FBBF24;
     }
 
-    .btn-success:hover {
-      background: rgba(16, 185, 129, 0.25);
+    .btn-demo:hover {
+      background: rgba(245, 158, 11, 0.25);
     }
 
-    /* Range Selector */
-    .range-selector {
+    .btn-demo.active {
+      background: linear-gradient(135deg, #F59E0B, #D97706);
+      color: #000;
+      font-weight: 800;
+      border-color: #F59E0B;
+    }
+
+    /* Cycle & Time Navigation */
+    .cycle-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 18px;
+      margin-bottom: 24px;
       display: flex;
-      background: rgba(0, 0, 0, 0.35);
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+
+    .cycle-tabs {
+      display: flex;
+      background: rgba(0, 0, 0, 0.4);
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 3px;
       gap: 4px;
-      margin-bottom: 24px;
     }
 
-    .range-btn {
-      flex: 1;
-      padding: 8px 0;
-      text-align: center;
+    .cycle-tab-btn {
+      padding: 7px 14px;
       font-size: 12px;
       font-weight: 600;
       color: var(--text-muted);
@@ -161,27 +188,104 @@
       transition: all 0.2s;
     }
 
-    .range-btn:hover {
+    .cycle-tab-btn:hover {
       color: #fff;
     }
 
-    .range-btn.active {
+    .cycle-tab-btn.active {
       background: var(--purple);
       color: #fff;
       box-shadow: 0 2px 10px var(--purple-glow);
     }
 
-    /* Metric Cards Grid */
-    .metrics-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 14px;
-      margin-bottom: 24px;
+    .cycle-navigator {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
-    @media (max-width: 800px) {
-      .metrics-grid {
-        grid-template-columns: repeat(2, 1fr);
+    .nav-arrow-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+
+    .nav-arrow-btn:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .nav-arrow-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .current-cycle-label {
+      font-size: 14px;
+      font-weight: 700;
+      color: #F8FAFC;
+      letter-spacing: -0.2px;
+      min-width: 220px;
+      text-align: center;
+    }
+
+    .comparison-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--green-light);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .comparison-badge.down-good {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: rgba(16, 185, 129, 0.3);
+      color: var(--green-light);
+    }
+
+    .comparison-badge.up-bad {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: var(--red-light);
+    }
+
+    /* Metric Groups Section */
+    .metric-section-title {
+      font-size: 12.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      margin: 18px 0 10px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .metrics-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    @media (max-width: 860px) {
+      .metrics-row {
+        grid-template-columns: 1fr;
       }
     }
 
@@ -189,14 +293,38 @@
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 14px;
-      padding: 16px;
+      padding: 16px 18px;
       backdrop-filter: blur(14px);
       transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
     }
 
     .metric-card:hover {
-      border-color: rgba(255, 255, 255, 0.16);
+      border-color: rgba(255, 255, 255, 0.18);
       transform: translateY(-2px);
+    }
+
+    .metric-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: transparent;
+    }
+
+    .card-impulsive::before {
+      background: linear-gradient(90deg, #F43F5E, #FB7185);
+    }
+
+    .card-intentional::before {
+      background: linear-gradient(90deg, #10B981, #06B6D4);
+    }
+
+    .card-discipline::before {
+      background: linear-gradient(90deg, #8B5CF6, #F59E0B);
     }
 
     .metric-header {
@@ -216,27 +344,58 @@
       font-size: 16px;
     }
 
-    .metric-value {
-      font-size: 24px;
-      font-weight: 800;
-      color: #fff;
+    .metric-val-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
       margin-bottom: 4px;
     }
 
-    .metric-sub {
+    .metric-value {
+      font-size: 26px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.5px;
+    }
+
+    .metric-delta {
       font-size: 11px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .delta-pos {
+      color: #34D399;
+      background: rgba(16, 185, 129, 0.15);
+    }
+
+    .delta-neg {
+      color: #F87171;
+      background: rgba(239, 68, 68, 0.15);
+    }
+
+    .delta-neutral {
       color: var(--text-dim);
     }
 
-    /* Charts Layout */
+    .metric-sub {
+      font-size: 11.5px;
+      color: var(--text-dim);
+      line-height: 1.35;
+    }
+
+    /* Charts Layout Grid */
     .charts-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 16px;
+      gap: 18px;
       margin-bottom: 24px;
     }
 
-    @media (max-width: 800px) {
+    @media (max-width: 900px) {
       .charts-grid {
         grid-template-columns: 1fr;
       }
@@ -245,9 +404,11 @@
     .chart-card {
       background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 18px;
+      border-radius: 16px;
+      padding: 20px;
       backdrop-filter: blur(14px);
+      display: flex;
+      flex-direction: column;
     }
 
     .chart-card-full {
@@ -259,17 +420,19 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 14px;
+      flex-wrap: wrap;
+      gap: 10px;
     }
 
     .chart-title {
-      font-size: 13px;
+      font-size: 13.5px;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--text-muted);
+      letter-spacing: 0.6px;
+      color: #F8FAFC;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
     }
 
     .chart-legend {
@@ -277,6 +440,7 @@
       gap: 12px;
       font-size: 11px;
       color: var(--text-muted);
+      flex-wrap: wrap;
     }
 
     .legend-item {
@@ -286,14 +450,14 @@
     }
 
     .legend-dot {
-      width: 8px;
-      height: 8px;
+      width: 9px;
+      height: 9px;
       border-radius: 50%;
     }
 
     .canvas-container {
       width: 100%;
-      height: 220px;
+      height: 250px;
       position: relative;
     }
 
@@ -303,12 +467,325 @@
       display: block;
     }
 
-    /* Data Table */
+    /* Hourly Heatmap Section */
+    .heatmap-container {
+      width: 100%;
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+
+    .heatmap-grid {
+      display: grid;
+      grid-template-columns: 70px repeat(24, 1fr);
+      gap: 4px;
+      min-width: 760px;
+    }
+
+    .heatmap-header-cell {
+      font-size: 10px;
+      color: var(--text-dim);
+      text-align: center;
+      padding: 4px 0;
+      font-weight: 600;
+    }
+
+    .heatmap-row-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      padding-right: 6px;
+    }
+
+    .heatmap-cell {
+      height: 24px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.03);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+
+    .heatmap-cell:hover {
+      transform: scale(1.15);
+      z-index: 10;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+
+    .heatmap-cell.level-0 { background: rgba(255, 255, 255, 0.04); }
+    .heatmap-cell.level-1 { background: rgba(139, 92, 246, 0.25); }
+    .heatmap-cell.level-2 { background: rgba(139, 92, 246, 0.55); }
+    .heatmap-cell.level-3 { background: rgba(245, 158, 11, 0.8); }
+    .heatmap-cell.level-4 {
+      background: rgba(239, 68, 68, 0.95);
+      box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+    }
+
+    .vulnerable-flag {
+      margin-top: 10px;
+      padding: 8px 12px;
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 8px;
+      font-size: 11.5px;
+      color: #FCA5A5;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Donut & Category Layout */
+    .donut-layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: 20px;
+      align-items: center;
+    }
+
+    @media (max-width: 600px) {
+      .donut-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .category-pills-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .category-pill-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 8px 12px;
+      font-size: 12px;
+    }
+
+    .cat-name-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+    }
+
+    .cat-badge-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+    }
+
+    .keywords-cloud {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .keyword-tag {
+      font-size: 10.5px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+    }
+
+    /* Ratio Gauge Layout */
+    .gauge-layout {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      height: 100%;
+      gap: 16px;
+    }
+
+    .ratio-bar-box {
+      margin-top: 8px;
+    }
+
+    .ratio-bar-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .ratio-bar-track {
+      width: 100%;
+      height: 14px;
+      background: rgba(239, 68, 68, 0.4);
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+    }
+
+    .ratio-bar-deep {
+      height: 100%;
+      background: linear-gradient(90deg, #10B981, #06B6D4);
+      transition: width 0.4s ease;
+    }
+
+    .gauge-insights-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .gauge-stat-box {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      text-align: center;
+    }
+
+    .gauge-stat-num {
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    .gauge-stat-lbl {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* AI Reflection Coach Card */
+    .ai-coach-card {
+      background: linear-gradient(135deg, rgba(30, 27, 75, 0.75), rgba(15, 23, 42, 0.95));
+      border: 1.5px solid var(--border-accent);
+      border-radius: 18px;
+      padding: 24px;
+      margin-bottom: 24px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .ai-coach-card::before {
+      content: "";
+      position: absolute;
+      top: -40px;
+      right: -40px;
+      width: 140px;
+      height: 140px;
+      background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .ai-coach-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .coach-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .coach-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--purple), var(--cyan));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 2px 10px var(--purple-glow);
+    }
+
+    .coach-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .coach-sub {
+      font-size: 11px;
+      color: #C4B5FD;
+    }
+
+    .coach-body {
+      font-size: 13.5px;
+      line-height: 1.6;
+      color: #E2E8F0;
+      margin-bottom: 18px;
+    }
+
+    .coach-pillars {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    @media (max-width: 800px) {
+      .coach-pillars {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .coach-pillar-box {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+
+    .pillar-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pillar-text {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    .coach-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .coach-status-msg {
+      font-size: 11.5px;
+      color: var(--text-muted);
+    }
+
+    /* History Data Table */
     .table-card {
       background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 18px;
+      border-radius: 16px;
+      padding: 20px;
       margin-bottom: 24px;
       overflow-x: auto;
     }
@@ -360,6 +837,21 @@
       color: #FCA5A5;
     }
 
+    /* Floating Tooltip */
+    #chart-tooltip {
+      position: fixed;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid var(--purple);
+      border-radius: 8px;
+      padding: 6px 12px;
+      color: #fff;
+      font-size: 11px;
+      pointer-events: none;
+      display: none;
+      z-index: 10000;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+    }
+
     /* Toast Notification */
     #dashboard-toast {
       position: fixed;
@@ -395,119 +887,350 @@
     <!-- Top Bar -->
     <div class="top-bar">
       <div class="app-branding">
-        <div class="brand-icon">📊</div>
+        <div class="brand-icon">🧠</div>
         <div>
-          <h1 class="brand-title">Báo Cáo Phân Tích Xu Hướng</h1>
-          <div class="brand-subtitle">Theo dõi hành vi lướt mạng xã hội & quản lý dữ liệu sao lưu đường dài</div>
+          <h1 class="brand-title">Báo Cáo Phân Tích Xu Hướng & Tâm Lý</h1>
+          <div class="brand-subtitle">Từ nghiện vuốt vô thức sang chủ động kiểm soát — Hành trình phục hồi Attention Span</div>
         </div>
       </div>
       <div class="top-actions">
-        <button id="btn-export-json" class="btn btn-success" title="Tải toàn bộ dữ liệu về máy dưới dạng JSON">
-          📥 Xuất Dữ Liệu (JSON)
+        <button id="btn-toggle-demo" class="btn btn-demo" title="Bật/Tắt Dữ liệu mẫu (Demo) 4 tuần tiến bộ tâm lý">
+          🧪 Xem Dữ Liệu Mẫu
+        </button>
+        <button id="btn-export-json" class="btn btn-primary" title="Tải toàn bộ dữ liệu về máy dưới dạng JSON">
+          📥 Xuất JSON
         </button>
         <button id="btn-import-json-trigger" class="btn" title="Khôi phục dữ liệu từ file sao lưu JSON">
-          📤 Khôi Phục (JSON)
+          📤 Khôi Phục JSON
         </button>
         <input type="file" id="import-json-file" accept=".json" style="display: none;">
       </div>
     </div>
 
-    <!-- Date Range Selector -->
-    <div class="range-selector">
-      <button class="range-btn active" data-days="7">7 Ngày Gần Nhất</button>
-      <button class="range-btn" data-days="30">30 Ngày Gần Nhất</button>
-      <button class="range-btn" data-days="90">90 Ngày (Quý)</button>
-      <button class="range-btn" data-days="0">Toàn Bộ Lịch Sử</button>
-    </div>
-
-    <!-- Metrics Summary Grid -->
-    <div class="metrics-grid">
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Tổng thời gian</span>
-          <span class="metric-icon">⏱️</span>
-        </div>
-        <div id="stat-total-time" class="metric-value">0h 0m</div>
-        <div id="stat-avg-time" class="metric-sub">Trung bình: 0m/ngày</div>
+    <!-- Cycle Selector & Time Navigation -->
+    <div class="cycle-panel">
+      <div class="cycle-tabs">
+        <button class="cycle-tab-btn active" data-mode="week">📅 Theo Tuần</button>
+        <button class="cycle-tab-btn" data-mode="month">📆 Theo Tháng</button>
+        <button class="cycle-tab-btn" data-mode="rolling30">⏳ 30 Ngày Gần Nhất</button>
       </div>
 
-      <div class="metric-card">
+      <div class="cycle-navigator">
+        <button id="btn-cycle-prev" class="nav-arrow-btn" title="Kỳ trước">◀</button>
+        <span id="cycle-label" class="current-cycle-label">Đang tải...</span>
+        <button id="btn-cycle-next" class="nav-arrow-btn" title="Kỳ sau">▶</button>
+      </div>
+
+      <div id="cycle-comparison-badge" class="comparison-badge">
+        Đang so sánh kỳ trước...
+      </div>
+    </div>
+
+    <!-- 1. NHÓM CHỈ SỐ ĐO LƯỜNG ĐỘ NGHIỆN & MẤT KIÊN NHẪN (IMPULSIVE METRICS) -->
+    <div class="metric-section-title">
+      <span>🛑 1. Chỉ Số Đo Lường Độ Nghiện & Mất Kiên Nhẫn (Impulsive Metrics)</span>
+    </div>
+    <div class="metrics-row">
+      <div class="metric-card card-impulsive">
         <div class="metric-header">
-          <span class="metric-title">Shorts / Reels</span>
+          <span class="metric-title">Tổng số lượt vuốt (Swipes)</span>
           <span class="metric-icon">📱</span>
         </div>
-        <div id="stat-total-swipes" class="metric-value" style="color: #A78BFA;">0</div>
-        <div id="stat-avg-swipes" class="metric-sub">Trung bình: 0 lượt/ngày</div>
+        <div class="metric-val-row">
+          <div id="metric-swipes-val" class="metric-value">0</div>
+          <span id="metric-swipes-delta" class="metric-delta delta-neutral">--</span>
+        </div>
+        <div id="metric-swipes-sub" class="metric-sub">Tần suất cuộn ngón tay tìm dopamine ngắn</div>
       </div>
 
-      <div class="metric-card">
+      <div class="metric-card card-impulsive">
         <div class="metric-header">
-          <span class="metric-title">Tần suất F5 / Reload</span>
+          <span class="metric-title">Tần suất F5 / Reload trang</span>
           <span class="metric-icon">🔄</span>
         </div>
-        <div id="stat-total-reloads" class="metric-value" style="color: #F59E0B;">0</div>
-        <div id="stat-reload-assessment" class="metric-sub">Mức độ bồn chồn: Thấp</div>
+        <div class="metric-val-row">
+          <div id="metric-reloads-val" class="metric-value">0</div>
+          <span id="metric-reloads-delta" class="metric-delta delta-neutral">--</span>
+        </div>
+        <div id="metric-reloads-sub" class="metric-sub">Mức độ bồn chồn, "xóc đĩa" chờ nội dung mới</div>
       </div>
 
-      <div class="metric-card">
+      <div class="metric-card card-impulsive">
         <div class="metric-header">
-          <span class="metric-title">Nội dung mục tiêu</span>
-          <span class="metric-icon">🎯</span>
+          <span class="metric-title">Tỷ lệ bỏ dở giữa chừng (&lt; 15%)</span>
+          <span class="metric-icon">⏩</span>
         </div>
-        <div id="stat-useful-pct" class="metric-value" style="color: #10B981;">0%</div>
-        <div id="stat-useful-count" class="metric-sub">0 video hữu ích</div>
+        <div class="metric-val-row">
+          <div id="metric-skips-val" class="metric-value">0%</div>
+          <span id="metric-skips-delta" class="metric-delta delta-neutral">--</span>
+        </div>
+        <div id="metric-skips-sub" class="metric-sub">Đo lường mức độ giảm sút khả năng tập trung sâu</div>
       </div>
     </div>
 
-    <!-- Charts Grid -->
+    <!-- 2. NHÓM CHỈ SỐ CHẤT LƯỢNG & GIÁ TRỊ (INTENTIONAL METRICS) -->
+    <div class="metric-section-title">
+      <span>🎯 2. Chỉ Số Chất Lượng & Giá Trị (Intentional Metrics)</span>
+    </div>
+    <div class="metrics-row">
+      <div class="metric-card card-intentional">
+        <div class="metric-header">
+          <span class="metric-title">Tỷ lệ Mục tiêu vs Lạc lối</span>
+          <span class="metric-icon">⚖️</span>
+        </div>
+        <div class="metric-val-row">
+          <div id="metric-goal-ratio-val" class="metric-value">0%</div>
+          <span id="metric-goal-ratio-delta" class="metric-delta delta-neutral">--</span>
+        </div>
+        <div id="metric-goal-ratio-sub" class="metric-sub">Độ bám sát Master Goal cá nhân</div>
+      </div>
+
+      <div class="metric-card card-intentional">
+        <div class="metric-header">
+          <span class="metric-title">Tỷ lệ Xem sâu (≥ 80% hoặc &gt; 3p)</span>
+          <span class="metric-icon">📚</span>
+        </div>
+        <div class="metric-val-row">
+          <div id="metric-deep-val" class="metric-value">0%</div>
+          <span id="metric-deep-delta" class="metric-delta delta-neutral">--</span>
+        </div>
+        <div id="metric-deep-sub" class="metric-sub">Khả năng kiên nhẫn nạp tri thức dài</div>
+      </div>
+
+      <div class="metric-card card-intentional">
+        <div class="metric-header">
+          <span class="metric-title">Tổng thời gian Active</span>
+          <span class="metric-icon">⏱️</span>
+        </div>
+        <div class="metric-val-row">
+          <div id="metric-time-val" class="metric-value">0h 0m</div>
+          <span id="metric-time-delta" class="metric-delta delta-neutral">--</span>
+        </div>
+        <div id="metric-time-sub" class="metric-sub">Thời gian chủ động tương tác có ý thức</div>
+      </div>
+    </div>
+
+    <!-- 3. NHÓM KỶ LUẬT & THÀNH TỰU (DISCIPLINE & GAMIFICATION) -->
+    <div class="metric-section-title">
+      <span>🛡️ 3. Chỉ Số Kỷ Luật & Thành Tựu (Discipline & Gamification)</span>
+    </div>
+    <div class="metrics-row">
+      <div class="metric-card card-discipline">
+        <div class="metric-header">
+          <span class="metric-title">Chuỗi Focus Streak</span>
+          <span class="metric-icon">🔥</span>
+        </div>
+        <div class="metric-val-row">
+          <div id="metric-streak-val" class="metric-value">0 ngày</div>
+          <span class="metric-delta delta-pos">An toàn</span>
+        </div>
+        <div class="metric-sub">Số ngày liên tiếp không chạm Mốc đỏ trần (Mốc 3)</div>
+      </div>
+
+      <div class="metric-card card-discipline">
+        <div class="metric-header">
+          <span class="metric-title">Tỷ lệ vượt qua cám dỗ</span>
+          <span class="metric-icon">🫁</span>
+        </div>
+        <div class="metric-val-row">
+          <div id="metric-resist-val" class="metric-value">100%</div>
+          <span id="metric-resist-badge" class="metric-delta delta-pos">0 lần</span>
+        </div>
+        <div class="metric-sub">Hoàn thành thở Box Breathing đóng tab thành công</div>
+      </div>
+
+      <div class="metric-card card-discipline">
+        <div class="metric-header">
+          <span class="metric-title">Sức khỏe trung bình Linh vật</span>
+          <span class="metric-icon">🐾</span>
+        </div>
+        <div class="metric-val-row">
+          <div id="metric-pet-val" class="metric-value">100⚡</div>
+          <span id="metric-pet-mood" class="metric-delta delta-pos">✨ Tươi tỉnh</span>
+        </div>
+        <div class="metric-sub">Điểm tổng kết trạng thái nuôi dưỡng linh vật trong kỳ</div>
+      </div>
+    </div>
+
+    <!-- 4. KHỐI ĐÚC KẾT INSIGHT CÁ NHÂN HÓA TỪ AI REFLECTION COACH -->
+    <div class="ai-coach-card">
+      <div class="ai-coach-header">
+        <div class="coach-badge">
+          <div class="coach-avatar">🤖</div>
+          <div>
+            <div class="coach-title">Bản Đúc Kết AI Reflection Coach</div>
+            <div class="coach-sub">Phân tích chuyển biến tâm lý & định hình thói quen số vững bền</div>
+          </div>
+        </div>
+        <button id="btn-ask-gemini" class="btn btn-primary" title="Gọi Google Gemini Flash đào sâu phản tư">
+          ✨ Nhờ AI Coach Đào Sâu (Gemini)
+        </button>
+      </div>
+
+      <div id="coach-feedback-text" class="coach-body">
+        Đang phân tích dữ liệu hành vi của kỳ này...
+      </div>
+
+      <div class="coach-pillars">
+        <div class="coach-pillar-box">
+          <div class="pillar-label" style="color: #34D399;">🌟 Điểm sáng & Bước ngoặt</div>
+          <div id="coach-pillar-strengths" class="pillar-text">Ghi nhận sự kiên trì trong các phiên học tập.</div>
+        </div>
+
+        <div class="coach-pillar-box">
+          <div class="pillar-label" style="color: #F87171;">⚠️ Khung giờ chết (Vulnerable)</div>
+          <div id="coach-pillar-vulnerable" class="pillar-text">Chưa phát hiện khung giờ vượt trần bất thường.</div>
+        </div>
+
+        <div class="coach-pillar-box">
+          <div class="pillar-label" style="color: #67E8F9;">🎯 Đề xuất can thiệp</div>
+          <div id="coach-pillar-action" class="pillar-text">Duy trì giới nghiêm và thở Box Breathing khi bồn chồn.</div>
+        </div>
+      </div>
+
+      <div class="coach-actions">
+        <span id="coach-status-msg" class="coach-status-msg">
+          ⚡ Tự động phân tích bằng mô hình tâm lý Offline (Sẵn sàng gọi Gemini AI khi cần)
+        </span>
+      </div>
+    </div>
+
+    <!-- 5. CÁC LOẠI BIỂU ĐỒ TRỰC QUAN HÓA (5 BIỂU ĐỒ) -->
     <div class="charts-grid">
-      <!-- Chart 1: Thời gian lướt theo ngày -->
+      <!-- BIỂU ĐỒ 1: Biểu đồ Cột Chồng (Stacked Bar Chart) -->
       <div class="chart-card">
         <div class="chart-title-bar">
-          <span class="chart-title">⏱️ Thời Gian Lướt (Phút)</span>
+          <span class="chart-title">📊 1. Cán Cân Năng Lượng (Stacked Bar)</span>
           <div class="chart-legend">
-            <span class="legend-item"><span class="legend-dot" style="background:#8B5CF6;"></span> Chủ động (Active)</span>
-            <span class="legend-item"><span class="legend-dot" style="background:#06B6D4;"></span> Treo/Nghỉ (Passive)</span>
+            <span class="legend-item"><span class="legend-dot" style="background:#10B981;"></span> Mục tiêu</span>
+            <span class="legend-item"><span class="legend-dot" style="background:#8B5CF6;"></span> Giải trí</span>
+            <span class="legend-item"><span class="legend-dot" style="background:#EF4444;"></span> Lạc lối</span>
+            <span class="legend-item"><span class="legend-dot" style="background:#64748B;"></span> Chưa rõ</span>
           </div>
         </div>
         <div class="canvas-container">
-          <canvas id="chart-time"></canvas>
+          <canvas id="chart-stacked-bars"></canvas>
         </div>
       </div>
 
-      <!-- Chart 2: Số lượt lướt Shorts & Reels -->
+      <!-- BIỂU ĐỒ 2: Biểu đồ Đường Xu Hướng Kép (Multi-Line Chart) -->
       <div class="chart-card">
         <div class="chart-title-bar">
-          <span class="chart-title">📱 Lượt Lướt Shorts & Reels</span>
+          <span class="chart-title">📈 2. Đối Chiếu Độ Dốc Cơn Nghiện (Multi-Line)</span>
           <div class="chart-legend">
-            <span class="legend-item"><span class="legend-dot" style="background:#F43F5E;"></span> YouTube Shorts</span>
-            <span class="legend-item"><span class="legend-dot" style="background:#3B82F6;"></span> FB Reels / Feed</span>
+            <span class="legend-item"><span class="legend-dot" style="background:#A78BFA;"></span> Tổng Swipes</span>
+            <span class="legend-item"><span class="legend-dot" style="background:#F59E0B;"></span> Tần suất F5/Reload</span>
           </div>
         </div>
         <div class="canvas-container">
-          <canvas id="chart-swipes"></canvas>
+          <canvas id="chart-multi-line"></canvas>
         </div>
       </div>
 
-      <!-- Chart 3: Tỷ lệ nội dung mục tiêu / hữu ích -->
+      <!-- BIỂU ĐỒ 3: Bản đồ Nhiệt Hoạt Động (Hourly Activity Heatmap) -->
       <div class="chart-card chart-card-full">
         <div class="chart-title-bar">
-          <span class="chart-title">🎯 Tỷ Lệ % Nội Dung Mục Tiêu Qua Từng Ngày</span>
+          <span class="chart-title">🗺️ 3. Bản Đồ Nhiệt Khung Giờ Hoạt Động (7 Ngày x 24 Giờ)</span>
           <div class="chart-legend">
-            <span class="legend-item"><span class="legend-dot" style="background:#10B981;"></span> % Hữu ích</span>
-            <span class="legend-item"><span class="legend-dot" style="background:#EF4444;"></span> Ngưỡng tối thiểu (70%)</span>
+            <span class="legend-item"><span class="legend-dot" style="background:rgba(255,255,255,0.08);"></span> 0 lượt</span>
+            <span class="legend-item"><span class="legend-dot" style="background:rgba(139,92,246,0.5);"></span> 1-15</span>
+            <span class="legend-item"><span class="legend-dot" style="background:rgba(245,158,11,0.8);"></span> 16-35</span>
+            <span class="legend-item"><span class="legend-dot" style="background:rgba(239,68,68,0.95);"></span> 36+ (Đỏ trần)</span>
           </div>
         </div>
-        <div class="canvas-container">
-          <canvas id="chart-useful"></canvas>
+        <div class="heatmap-container">
+          <div id="heatmap-grid" class="heatmap-grid">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+        <div id="heatmap-vulnerable-flag" class="vulnerable-flag" style="display:none;">
+          <span>⚠️ <b>Điểm mù tâm lý phát hiện:</b> <span id="vulnerable-flag-text"></span></span>
+        </div>
+      </div>
+
+      <!-- BIỂU ĐỒ 4: Biểu đồ Vành Khuyên (Donut Chart) & Phân Bổ Chuyên Mục -->
+      <div class="chart-card">
+        <div class="chart-title-bar">
+          <span class="chart-title">🍩 4. Phân Bổ Danh Mục & Từ Khóa (Donut)</span>
+        </div>
+        <div class="donut-layout">
+          <div style="width: 220px; height: 220px; margin: 0 auto; position: relative;">
+            <canvas id="chart-donut"></canvas>
+          </div>
+          <div class="category-pills-list">
+            <div class="category-pill-item">
+              <div class="cat-name-box">
+                <span class="cat-badge-dot" style="background:#10B981;"></span>
+                <span>Mục tiêu (Học tập)</span>
+              </div>
+              <span id="cat-pct-goal" style="font-weight:700; color:#10B981;">0%</span>
+            </div>
+            <div class="category-pill-item">
+              <div class="cat-name-box">
+                <span class="cat-badge-dot" style="background:#8B5CF6;"></span>
+                <span>Giải trí lành mạnh</span>
+              </div>
+              <span id="cat-pct-leisure" style="font-weight:700; color:#A78BFA;">0%</span>
+            </div>
+            <div class="category-pill-item">
+              <div class="cat-name-box">
+                <span class="cat-badge-dot" style="background:#EF4444;"></span>
+                <span>Lạc lối (Drama / Vô thức)</span>
+              </div>
+              <span id="cat-pct-distract" style="font-weight:700; color:#F87171;">0%</span>
+            </div>
+            <div class="category-pill-item">
+              <div class="cat-name-box">
+                <span class="cat-badge-dot" style="background:#64748B;"></span>
+                <span>Chưa rõ danh mục</span>
+              </div>
+              <span id="cat-pct-unclass" style="font-weight:700; color:#94A3B8;">0%</span>
+            </div>
+            <div id="keywords-cloud-box" class="keywords-cloud">
+              <!-- Rendered tags -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BIỂU ĐỒ 5: Thanh Đo So Sánh Chú Ý (Attention Span Gauge / Ratio Bar) -->
+      <div class="chart-card">
+        <div class="chart-title-bar">
+          <span class="chart-title">🎯 5. Thước Đo Phục Hồi Attention Span</span>
+        </div>
+        <div class="gauge-layout">
+          <div class="ratio-bar-box">
+            <div class="ratio-bar-header">
+              <span style="color:#10B981;">Xem Trọn Vẹn (≥ 80%): <span id="gauge-deep-pct">0%</span></span>
+              <span style="color:#EF4444;">Bỏ Dở (&lt; 15%): <span id="gauge-skip-pct">0%</span></span>
+            </div>
+            <div class="ratio-bar-track" title="Tỷ lệ Xem sâu vs Bỏ dở">
+              <div id="ratio-bar-deep-fill" class="ratio-bar-deep" style="width: 50%;"></div>
+            </div>
+          </div>
+
+          <div class="gauge-insights-list">
+            <div class="gauge-stat-box">
+              <div id="gauge-total-deep-count" class="gauge-stat-num" style="color:#34D399;">0</div>
+              <div class="gauge-stat-lbl">Video xem sâu trọn vẹn</div>
+            </div>
+            <div class="gauge-stat-box">
+              <div id="gauge-total-skip-count" class="gauge-stat-num" style="color:#F87171;">0</div>
+              <div class="gauge-stat-lbl">Video lướt tắt vội vã</div>
+            </div>
+          </div>
+
+          <div id="gauge-verdict-text" style="font-size:12px; color:var(--text-muted); line-height:1.45; text-align:center;">
+            Đang phân tích khả năng duy trì tập trung sâu...
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Data Table -->
+    <!-- 6. BẢNG CHI TIẾT THEO NGÀY -->
     <div class="table-card">
       <div style="font-size:14px; font-weight:700; color:#F8FAFC; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
-        <span>📜 Bảng Chi Tiết Theo Ngày</span>
+        <span>📜 Bảng Chi Tiết Theo Ngày Trong Kỳ</span>
         <span id="table-row-count" style="font-size:11px; color:var(--text-muted);">0 ngày ghi nhận</span>
       </div>
       <table>
@@ -515,10 +1238,10 @@
           <tr>
             <th>Ngày</th>
             <th>Thời Gian Active</th>
-            <th>Shorts / Reels</th>
-            <th>Video Dài</th>
-            <th>F5 Reload</th>
-            <th>% Hữu Ích</th>
+            <th>Tổng Swipes</th>
+            <th>F5 / Reload</th>
+            <th>% Mục Tiêu</th>
+            <th>Xem Sâu / Bỏ Dở</th>
             <th>Đánh Giá Kỷ Luật</th>
           </tr>
         </thead>
@@ -528,6 +1251,9 @@
       </table>
     </div>
   </div>
+
+  <!-- Floating Chart Tooltip -->
+  <div id="chart-tooltip"></div>
 
   <!-- Toast -->
   <div id="dashboard-toast"></div>

@@ -5,7 +5,7 @@
  */
 
 import { saveDayData, formatTimeShort, recordHourlyMetrics } from "../../utils/storage.js";
-import { categorizeText, classifyByKeywords } from "./keyword-filter.js";
+import { categorizeText, classifyByKeywords, normalizeCategory } from "./keyword-filter.js";
 
 const IDLE_THRESHOLD_MS = 30000;
 
@@ -214,6 +214,18 @@ export class Tracker {
     this._shortViewTimer = setTimeout(() => {
       this.dayData.youtube.shorts.validViews++;
       this._shortViewTimer = null;
+
+      // Ghi nhận video xem sâu (>= 2s) vào Nhật ký nội dung hôm nay
+      const shortTitle = this.extractCurrentYTShortTitle() || "YouTube Short";
+      const shortChannel = this.extractCurrentYTShortChannel() || "";
+      this.recordShortVideoItem({
+        id: shortId,
+        title: shortTitle,
+        channel: shortChannel,
+        platform: "youtube",
+        contentType: "shorts"
+      });
+
       this.onUpdate();
       saveDayData(this.dayData, "youtube", false);
     }, 2000);
@@ -383,14 +395,16 @@ export class Tracker {
       const isUseful = watchPct >= 0.80 || watched >= 180;          // >= 80% hoặc >= 3 phút đủ thời lượng dài
       const isImpulsive = duration > 60 && watchPct < 0.15;         // < 15% và video > 1 phút
 
-      const category = classifyByKeywords(this._currentYTLongTitle, this.keywordsConfig);
+      const rawCat = classifyByKeywords(this._currentYTLongTitle, this.keywordsConfig);
+      const category = normalizeCategory(rawCat);
 
       const record = {
         id: this._currentYTLongId,
         title: this._currentYTLongTitle || "Không rõ tiêu đề",
         channel: this._currentYTLongChannel || "Không rõ kênh",
         platform: "youtube",
-        category, // "goal" | "leisure" | "distraction" | "unclassified"
+        contentType: "long",
+        category, // "Mục tiêu" | "Giải trí" | "Lạc lối" | "Chưa rõ"
         watchedSeconds: watched,
         durationSeconds: duration,
         isCompletion: Boolean(isUseful),
@@ -413,10 +427,10 @@ export class Tracker {
 
       if (!this.dayData.watchedVideos) this.dayData.watchedVideos = [];
       this.dayData.watchedVideos.unshift(record);
-      if (this.dayData.watchedVideos.length > 50) this.dayData.watchedVideos.pop();
+      if (this.dayData.watchedVideos.length > 60) this.dayData.watchedVideos.pop();
 
       // Lưu lại các video chưa phân loại vào unmatchedQueue để AI xử lý lúc 22h00
-      if (category === "unclassified" && this._currentYTLongTitle) {
+      if (category === "Chưa rõ" && this._currentYTLongTitle) {
         if (!this.dayData.unmatchedQueue) this.dayData.unmatchedQueue = [];
         const exists = this.dayData.unmatchedQueue.some(u => u.title === this._currentYTLongTitle);
         if (!exists) {
@@ -502,6 +516,18 @@ export class Tracker {
     this._fbReelTimer = setTimeout(() => {
       this.dayData.facebook.reels.validViews++;
       this._fbReelTimer = null;
+
+      // Ghi nhận video xem sâu (>= 2s) vào Nhật ký nội dung hôm nay
+      const reelTitle = this.extractCurrentFBReelTitle() || "Facebook Reel";
+      const reelAuthor = this.extractCurrentFBReelAuthor() || "";
+      this.recordShortVideoItem({
+        id: reelId,
+        title: reelTitle,
+        channel: reelAuthor,
+        platform: "facebook",
+        contentType: "reels"
+      });
+
       this.onUpdate();
       saveDayData(this.dayData, "facebook", false);
     }, 2000);
@@ -513,11 +539,44 @@ export class Tracker {
 
   handleTikTokSwipe() {
     if (!this.dayData.tiktok) return;
+
+    if (this._tiktokViewTimer) {
+      clearTimeout(this._tiktokViewTimer);
+      this._tiktokViewTimer = null;
+      if (this._currentTikTokId) {
+        this.dayData.tiktok.shorts.impulsiveCount = (this.dayData.tiktok.shorts.impulsiveCount || 0) + 1;
+      }
+    }
+
+    const currentUrl = location.href;
+    const tikTokIdMatch = currentUrl.match(/\/video\/(\d+)/);
+    const tikTokId = tikTokIdMatch ? tikTokIdMatch[1] : `tt_${Date.now()}`;
+    this._currentTikTokId = tikTokId;
+
     this.dayData.tiktok.shorts.totalSwipes++;
     recordHourlyMetrics(this.dayData, { swipes: 1 });
     this.onUpdate();
     saveDayData(this.dayData, "tiktok", false);
     this.onAction();
+
+    this._tiktokViewTimer = setTimeout(() => {
+      if (this.dayData.tiktok) {
+        this.dayData.tiktok.shorts.validViews++;
+      }
+      this._tiktokViewTimer = null;
+
+      const title = this.extractCurrentTikTokTitle() || "TikTok Video";
+      this.recordShortVideoItem({
+        id: tikTokId,
+        title,
+        channel: "",
+        platform: "tiktok",
+        contentType: "shorts"
+      });
+
+      this.onUpdate();
+      saveDayData(this.dayData, "tiktok", false);
+    }, 2000);
 
     this._setupShortLoopTracker("tiktok");
   }
@@ -623,6 +682,98 @@ export class Tracker {
         }
       });
     }, 300);
+  }
+
+  // ─── Ghi nhận Video/Shorts vào Nhật ký nội dung hôm nay ────────────────────
+
+  recordShortVideoItem({ id, title, channel, platform, contentType }) {
+    if (!this.dayData.watchedVideos) this.dayData.watchedVideos = [];
+    const rawCategory = classifyByKeywords(title, this.keywordsConfig);
+    const category = normalizeCategory(rawCategory);
+
+    const existingIdx = this.dayData.watchedVideos.findIndex(v => v.id === id);
+    if (existingIdx >= 0) {
+      this.dayData.watchedVideos[existingIdx].watchedSeconds = (this.dayData.watchedVideos[existingIdx].watchedSeconds || 2) + 2;
+    } else {
+      const record = {
+        id: id || `short_${Date.now()}`,
+        title: title || "Video ngắn",
+        channel: channel || "",
+        platform: platform || "youtube",
+        contentType: contentType || "shorts",
+        category, // "Mục tiêu" | "Giải trí" | "Lạc lối" | "Chưa rõ"
+        watchedSeconds: 2,
+        durationSeconds: 30,
+        isCompletion: false,
+        timestamp: Date.now(),
+        userOverridden: false
+      };
+      this.dayData.watchedVideos.unshift(record);
+      if (this.dayData.watchedVideos.length > 60) this.dayData.watchedVideos.pop();
+    }
+  }
+
+  extractCurrentYTShortTitle() {
+    try {
+      const activeRenderer = document.querySelector("ytd-reel-video-renderer[is-active]");
+      if (activeRenderer) {
+        const titleEl = activeRenderer.querySelector("h2.title, .title, #overlay .ytReelVideoTitleText, yt-formatted-string.ytd-reel-player-header-renderer");
+        if (titleEl && titleEl.textContent.trim()) return titleEl.textContent.trim();
+      }
+      const globalTitle = document.querySelector("#shorts-container ytd-reel-video-renderer[is-active] .title, ytd-shorts .title");
+      if (globalTitle && globalTitle.textContent.trim()) return globalTitle.textContent.trim();
+      const docTitle = document.title ? document.title.replace("- YouTube", "").replace("YouTube", "").trim() : "";
+      return docTitle || "YouTube Short";
+    } catch (_) {
+      return "YouTube Short";
+    }
+  }
+
+  extractCurrentYTShortChannel() {
+    try {
+      const activeRenderer = document.querySelector("ytd-reel-video-renderer[is-active]");
+      if (activeRenderer) {
+        const chEl = activeRenderer.querySelector("ytd-channel-name yt-formatted-string, #channel-name, .ytd-channel-name");
+        if (chEl && chEl.textContent.trim()) return chEl.textContent.trim();
+      }
+    } catch (_) {}
+    return "";
+  }
+
+  extractCurrentFBReelTitle() {
+    try {
+      const reelContainers = document.querySelectorAll("[role='main'] div[tabindex='-1'], [data-pagelet='Reels'], div[aria-label*='Reel']");
+      for (const c of reelContainers) {
+        const textEl = c.querySelector("span[dir='auto'], div[dir='auto']");
+        if (textEl && textEl.textContent.trim() && textEl.textContent.trim().length > 3) {
+          return textEl.textContent.trim().slice(0, 100);
+        }
+      }
+      const docTitle = document.title ? document.title.replace(" | Facebook", "").trim() : "";
+      return (docTitle && docTitle !== "Facebook") ? docTitle : "Facebook Reel";
+    } catch (_) {
+      return "Facebook Reel";
+    }
+  }
+
+  extractCurrentFBReelAuthor() {
+    try {
+      const authorEl = document.querySelector("h2 span, strong span, a[role='link'] strong");
+      return authorEl ? authorEl.textContent.trim() : "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  extractCurrentTikTokTitle() {
+    try {
+      const titleEl = document.querySelector("[data-e2e='browse-video-desc'], .css-j2a19r-SpanText, [data-e2e='video-desc']");
+      if (titleEl && titleEl.textContent.trim()) return titleEl.textContent.trim();
+      const docTitle = document.title ? document.title.replace(" | TikTok", "").trim() : "";
+      return (docTitle && docTitle !== "TikTok") ? docTitle : "TikTok Video";
+    } catch (_) {
+      return "TikTok Video";
+    }
   }
 
   // ─── Flush khi rời trang ─────────────────────────────────────────────────

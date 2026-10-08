@@ -275,6 +275,91 @@ Trả về JSON đúng cấu trúc:
 }
 
 /**
+ * 4b. AI Reflection Coach Dài Hạn (Tuần / Tháng)
+ */
+export async function generateLongtermReflectionCoach({
+  periodType = "tuần",
+  periodLabel = "",
+  currentSummary = {},
+  prevSummary = null,
+  masterGoal = "",
+  vulnerableHours = "",
+  topStrengths = ""
+}, apiKey) {
+  const compText = prevSummary ? `
+So sánh với kỳ trước:
+- Lượt vuốt (Swipes): Kỳ này ${currentSummary.totalSwipes} (kỳ trước ${prevSummary.totalSwipes}) => thay đổi ${currentSummary.deltaSwipes || 0}%
+- Tần suất F5 / Reload: Kỳ này ${currentSummary.totalReloads} (kỳ trước ${prevSummary.totalReloads}) => thay đổi ${currentSummary.deltaReloads || 0}%
+- Tỷ lệ nội dung Mục tiêu: Kỳ này ${currentSummary.goalPct || 0}% (kỳ trước ${prevSummary.goalPct || 0}%)
+- Tỷ lệ Xem sâu (>=80%): Kỳ này ${currentSummary.deepWatchPct || 0}% (kỳ trước ${prevSummary.deepWatchPct || 0}%)
+- Tỷ lệ Bỏ dở (<15%): Kỳ này ${currentSummary.impulsiveSkipPct || 0}% (kỳ trước ${prevSummary.impulsiveSkipPct || 0}%)
+` : `Kỳ trước: Chưa có dữ liệu so sánh trực tiếp.`;
+
+  const prompt = `Bạn là Chuyên gia Khai vấn Tâm lý & Thói quen số (AI Mindful Reflection Coach).
+Nhiệm vụ của bạn là đưa ra bản đúc kết phân tích hành vi dài hạn (${periodType}: ${periodLabel}) giúp người dùng nhìn rõ tiến trình chuyển biến tâm lý từ "nghiện vuốt vô thức" sang "chủ động kiểm soát".
+
+Dữ liệu hành vi kỳ này:
+- Tổng số lượt vuốt (Swipes): ${currentSummary.totalSwipes || 0} lượt
+- Tần suất F5 / Reload: ${currentSummary.totalReloads || 0} lần
+- Tỷ lệ video bỏ dở giữa chừng (<15%): ${currentSummary.impulsiveSkipPct || 0}%
+- Tỷ lệ nội dung Mục tiêu (Học tập): ${currentSummary.goalPct || 0}%
+- Tỷ lệ nội dung Lạc lối (Drama / Xao nhãng): ${currentSummary.distractionPct || 0}%
+- Tỷ lệ Xem sâu (>=80% thời lượng hoặc >3 phút): ${currentSummary.deepWatchPct || 0}%
+- Chuỗi ngày Focus Streak (không chạm Mốc đỏ trần): ${currentSummary.focusStreak || 0} ngày
+- Tỷ lệ vượt qua cám dỗ (thở Box Breathing đóng tab thành công): ${currentSummary.temptationResistPct || 0}%
+- Năng lượng linh vật trung bình: ${currentSummary.avgPetEnergy || 100}/100
+- Điểm mù tâm lý / Khung giờ dễ gục ngã (Vulnerable Window): ${vulnerableHours || "Không có khung giờ quá tải rõ rệt"}
+- Điểm sáng ghi nhận: ${topStrengths || "Duy trì ý thức kiểm soát hành vi"}
+- Mục tiêu tối thượng (Master Goal): "${masterGoal || "Trở thành phiên bản tốt hơn"}"
+
+${compText}
+
+Yêu cầu:
+1. "coachFeedback": Đoạn đúc kết tổng quan 3-5 câu giọng điệu thấu cảm, sắc bén, khen ngợi sự kiên trì hoặc chỉ ra sự chuyển biến dopamine. Phân tích cụ thể dựa vào tỷ lệ % tăng/giảm nếu có.
+2. "strengths": 1-2 điểm sáng nổi bật nhất (ví dụ: xem trọn vẹn bao nhiêu video học tập dài, giữ Focus streak, ...).
+3. "vulnerableWindow": Phân tích ngắn gọn khung giờ chết / điểm mù tâm lý người dùng hay mất kiểm soát nhất và lý do tâm lý tiềm ẩn.
+4. "actionAdvice": 1 đề xuất hành động can thiệp thiết thực và cụ thể cho kỳ tới (ví dụ: kích hoạt Màn hình Đen Trắng sớm từ 21h30 vào tối thứ Tư/Sáu, cài đặt hạn mức, hoặc thở Box Breathing trước khi mở app).
+
+Trả về JSON CHÍNH XÁC theo cấu trúc:
+{
+  "coachFeedback": "Lời nhận xét tổng kết...",
+  "strengths": "Điểm sáng...",
+  "vulnerableWindow": "Khung giờ chết...",
+  "actionAdvice": "Hành động can thiệp..."
+}`;
+
+  try {
+    const raw = await callGeminiApi(prompt, apiKey);
+    const parsed = parseJsonFromText(raw);
+    if (parsed && parsed.coachFeedback) {
+      return {
+        ok: true,
+        coachFeedback: parsed.coachFeedback,
+        strengths: parsed.strengths || "",
+        vulnerableWindow: parsed.vulnerableWindow || "",
+        actionAdvice: parsed.actionAdvice || ""
+      };
+    }
+    return {
+      ok: false,
+      coachFeedback: "Kỳ này bạn đã nỗ lực rất lớn để theo dõi thói quen. Hãy tiếp tục duy trì đà tiến bộ này!",
+      strengths: "Duy trì nhật ký và ý thức kiểm soát hành vi.",
+      vulnerableWindow: vulnerableHours || "Khung giờ tối muộn sau 22h00.",
+      actionAdvice: "Chủ động rời xa màn hình trước giờ đi ngủ 30 phút."
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err.message,
+      coachFeedback: `Không thể kết nối Gemini API (${err.message}). Nhưng các chỉ số cho thấy bạn đang tiến bộ rất rõ rệt!`,
+      strengths: "Ý thức kỷ luật kiên định.",
+      vulnerableWindow: vulnerableHours || "Khung giờ tối muộn.",
+      actionAdvice: "Thiết lập thói quen đọc sách thay vì lướt mạng xã hội lúc đêm muộn."
+    };
+  }
+}
+
+/**
  * Chuyển đổi chuỗi SVG thành Base64 Data URI
  */
 function svgToDataUri(svgStr) {

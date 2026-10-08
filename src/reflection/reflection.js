@@ -4,6 +4,8 @@
  * Tự tiến hóa từ khóa bộ lọc tĩnh, Linh vật Pet & Hồ sơ kiên trì đường dài.
  */
 
+import { normalizeCategory, cycleCategory } from "../content/modules/keyword-filter.js";
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getTodayKey() {
@@ -20,6 +22,14 @@ function formatDuration(seconds) {
   const m = Math.floor((s % 3600) / 60);
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
+}
+
+function formatTimeHHmm(timestamp) {
+  if (!timestamp) return "--:--";
+  const d = new Date(timestamp);
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -73,6 +83,7 @@ function renderStats(data) {
   // Phân loại nội dung từ watchedVideos
   const watchedVideos = Array.isArray(data.watchedVideos) ? data.watchedVideos : [];
   renderCategories(watchedVideos);
+  renderAuditLog(data);
 }
 
 function renderCategories(details) {
@@ -80,7 +91,7 @@ function renderCategories(details) {
   if (!container) return;
 
   if (!details || details.length === 0) {
-    container.innerHTML = `<div class="empty">Chưa có dữ liệu video dài hôm nay.</div>`;
+    container.innerHTML = `<div class="empty">Chưa có dữ liệu video hôm nay.</div>`;
     return;
   }
 
@@ -88,10 +99,11 @@ function renderCategories(details) {
   let totalUsefulSec = 0;
 
   details.forEach(item => {
-    const cat = item.category || "Khác";
+    const rawCat = item.category || "Chưa rõ";
+    const cat = normalizeCategory(rawCat);
     if (!counts[cat]) counts[cat] = { total: 0, useful: 0, watchedSec: 0 };
     counts[cat].total++;
-    const isUseful = item.category === "Mục tiêu" || item.isUseful || (item.completionPct && item.completionPct >= 80);
+    const isUseful = cat === "Mục tiêu" || item.isUseful || (item.completionPct && item.completionPct >= 80);
     if (isUseful) counts[cat].useful++;
     counts[cat].watchedSec += item.durationSeconds || item.watchedSeconds || 0;
     if (isUseful) totalUsefulSec += item.durationSeconds || item.watchedSeconds || 0;
@@ -103,7 +115,7 @@ function renderCategories(details) {
   container.innerHTML = "";
   sorted.forEach(([cat, stats]) => {
     const pct = stats.total > 0 ? Math.round((stats.useful / stats.total) * 100) : 0;
-    const color = pct >= 60 ? "#10B981" : pct >= 30 ? "#F59E0B" : "#EF4444";
+    const color = cat === "Mục tiêu" ? "#10B981" : cat === "Giải trí" ? "#F59E0B" : cat === "Lạc lối" ? "#EF4444" : "#94A3B8";
 
     const row = document.createElement("div");
     row.className = "cat-row";
@@ -137,6 +149,167 @@ function renderCategories(details) {
     row.appendChild(leftDiv);
     row.appendChild(rightDiv);
     container.appendChild(row);
+  });
+}
+
+// ─── Nhật Ký Nội Dung Hôm Nay (Watch Audit Log) ──────────────────────────────
+
+function renderAuditLog(data) {
+  const container = document.getElementById("audit-videos-list");
+  if (!container) return;
+
+  const rawVideos = Array.isArray(data.watchedVideos) ? data.watchedVideos : [];
+
+  // Phân loại video xem sâu (>80% thời lượng hoặc >= 180s hoặc Shorts/Reels >= 2s)
+  const deepVideos = rawVideos.filter(v => {
+    if (v.contentType === "shorts" || v.contentType === "reels") {
+      return (v.watchedSeconds || 0) >= 2;
+    }
+    return v.isCompletion || (v.watchedSeconds || 0) >= 180 || !v.isImpulsive;
+  });
+
+  // Đếm lướt bốc đồng tổng hợp (< 2s)
+  const ytImpulsive = data.youtube?.shorts?.impulsiveCount || 0;
+  const fbImpulsive = data.facebook?.reels?.impulsiveCount || 0;
+  const ttImpulsive = data.tiktok?.shorts?.impulsiveCount || 0;
+  const ytLongImp = data.youtube?.longVideos?.impulsiveCount || 0;
+  const fbLongImp = data.facebook?.longVideos?.impulsiveCount || 0;
+  const videoImpCount = rawVideos.filter(v => v.isImpulsive || (v.watchedSeconds || 0) < 2).length;
+  const totalImpulsive = Math.max(ytImpulsive + fbImpulsive + ttImpulsive + ytLongImp + fbLongImp, videoImpCount);
+
+  // Đếm theo 4 nhãn chuẩn: Mục tiêu, Giải trí, Lạc lối, Chưa rõ
+  let countGoal = 0;
+  let countLeisure = 0;
+  let countDistraction = 0;
+  let countUnclassified = 0;
+
+  deepVideos.forEach(v => {
+    const cat = normalizeCategory(v.category);
+    if (cat === "Mục tiêu") countGoal++;
+    else if (cat === "Giải trí") countLeisure++;
+    else if (cat === "Lạc lối") countDistraction++;
+    else countUnclassified++;
+  });
+
+  // Cập nhật DOM các bộ đếm
+  const deepCountEl = document.getElementById("audit-deep-count");
+  const impulsiveCountEl = document.getElementById("audit-impulsive-count");
+  const goalEl = document.getElementById("audit-count-goal");
+  const leisureEl = document.getElementById("audit-count-leisure");
+  const distEl = document.getElementById("audit-count-distraction");
+  const unclassEl = document.getElementById("audit-count-unclassified");
+  const noticeBox = document.getElementById("audit-impulsive-notice");
+  const noticeText = document.getElementById("audit-impulsive-text");
+
+  if (deepCountEl) deepCountEl.textContent = deepVideos.length;
+  if (impulsiveCountEl) impulsiveCountEl.textContent = totalImpulsive;
+  if (goalEl) goalEl.textContent = countGoal;
+  if (leisureEl) leisureEl.textContent = countLeisure;
+  if (distEl) distEl.textContent = countDistraction;
+  if (unclassEl) unclassEl.textContent = countUnclassified;
+
+  if (noticeBox && noticeText) {
+    if (totalImpulsive > 0) {
+      noticeText.textContent = totalImpulsive;
+      noticeBox.style.display = "flex";
+    } else {
+      noticeBox.style.display = "none";
+    }
+  }
+
+  if (deepVideos.length === 0) {
+    container.innerHTML = `<div class="empty">Chưa có video xem sâu nào được ghi nhận hôm nay.</div>`;
+    return;
+  }
+
+  container.innerHTML = "";
+  deepVideos.forEach(vid => {
+    const normCat = normalizeCategory(vid.category);
+    let badgeClass = "audit-badge-unclassified";
+    let badgeIcon = "⏳";
+    if (normCat === "Mục tiêu") { badgeClass = "audit-badge-goal"; badgeIcon = "🎯"; }
+    else if (normCat === "Giải trí") { badgeClass = "audit-badge-leisure"; badgeIcon = "☕"; }
+    else if (normCat === "Lạc lối") { badgeClass = "audit-badge-distraction"; badgeIcon = "🌀"; }
+
+    const itemEl = document.createElement("div");
+    itemEl.className = "audit-item";
+
+    const leftEl = document.createElement("div");
+    leftEl.className = "audit-item-left";
+
+    const timeEl = document.createElement("span");
+    timeEl.className = "audit-item-time";
+    timeEl.textContent = formatTimeHHmm(vid.timestamp);
+
+    const titleEl = document.createElement("span");
+    titleEl.className = "audit-item-title";
+    titleEl.textContent = vid.title || "Không rõ tiêu đề";
+    titleEl.title = `${vid.title || ""} (${vid.channel || ""})`;
+
+    leftEl.appendChild(timeEl);
+    leftEl.appendChild(titleEl);
+
+    const rightEl = document.createElement("div");
+    rightEl.className = "audit-item-right";
+
+    // Badge phân loại 1-chạm (Mục tiêu -> Giải trí -> Lạc lối -> Chưa rõ)
+    const badgeEl = document.createElement("span");
+    badgeEl.className = `audit-badge ${badgeClass}`;
+    badgeEl.textContent = `${badgeIcon} ${normCat}`;
+    badgeEl.title = "Bấm để đổi nhãn nhanh (Mục tiêu ➔ Giải trí ➔ Lạc lối ➔ Chưa rõ)";
+
+    badgeEl.addEventListener("click", () => {
+      const nextCat = cycleCategory(vid.category);
+      vid.category = nextCat;
+      vid.userOverridden = true;
+
+      chrome.storage.local.get([todayKey], (res) => {
+        const storedDay = res[todayKey] || data;
+        if (Array.isArray(storedDay.watchedVideos)) {
+          const target = storedDay.watchedVideos.find(v => v.id === vid.id || (v.title === vid.title && v.timestamp === vid.timestamp));
+          if (target) {
+            target.category = nextCat;
+            target.userOverridden = true;
+          }
+        }
+        chrome.storage.local.set({ [todayKey]: storedDay }, () => {
+          renderAuditLog(storedDay);
+          renderCategories(storedDay.watchedVideos || []);
+        });
+      });
+    });
+
+    const durEl = document.createElement("span");
+    durEl.className = "audit-item-dur";
+    const watchedSec = vid.watchedSeconds || 0;
+    const durSec = vid.durationSeconds || 0;
+    if (durSec > 0 && durSec > watchedSec) {
+      durEl.textContent = `${formatDuration(watchedSec)} / ${formatDuration(durSec)}`;
+    } else {
+      durEl.textContent = formatDuration(watchedSec);
+    }
+
+    rightEl.appendChild(badgeEl);
+    rightEl.appendChild(durEl);
+
+    itemEl.appendChild(leftEl);
+    itemEl.appendChild(rightEl);
+    container.appendChild(itemEl);
+  });
+}
+
+function setupAuditLogToggle() {
+  const toggleBtn = document.getElementById("audit-log-toggle");
+  const body = document.getElementById("audit-log-body");
+  const arrow = document.getElementById("audit-log-arrow");
+  if (!toggleBtn || !body) return;
+
+  toggleBtn.addEventListener("click", () => {
+    const isHidden = body.style.display === "none";
+    body.style.display = isHidden ? "block" : "none";
+    if (arrow) {
+      arrow.style.transform = isHidden ? "rotate(0deg)" : "rotate(-90deg)";
+    }
   });
 }
 

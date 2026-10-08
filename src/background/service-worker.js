@@ -9,6 +9,7 @@ import {
   classifyVideoTitle,
   extractSuggestedKeywords,
   generateReflectionCoach,
+  generateLongtermReflectionCoach,
   generateChibiPetSprites
 } from "./gemini-client.js";
 
@@ -24,11 +25,15 @@ import {
 
 chrome.runtime.onInstalled.addListener(() => {
   setupDailyReflectionAlarm();
+  setupDailyMidnightCleanupAlarm();
+  cleanOldDaysAndCompressLogs();
   initDefaultState();
 });
 
 chrome.runtime.onStartup.addListener(() => {
   setupDailyReflectionAlarm();
+  setupDailyMidnightCleanupAlarm();
+  cleanOldDaysAndCompressLogs();
 });
 
 function initDefaultState() {
@@ -129,10 +134,89 @@ function setupDailyReflectionAlarm(forced = false) {
   });
 }
 
-// Lắng nghe alarm kích hoạt lúc giờ phản tư
+function setupDailyMidnightCleanupAlarm() {
+  chrome.alarms.get("daily-midnight-cleanup", (existing) => {
+    if (existing) return;
+    const now = new Date();
+    const midnight = new Date();
+    midnight.setHours(24, 0, 5, 0); // 00:00:05 ngày mai
+    const delayMinutes = Math.max(0.5, (midnight.getTime() - now.getTime()) / (1000 * 60));
+    chrome.alarms.create("daily-midnight-cleanup", {
+      delayInMinutes: delayMinutes,
+      periodInMinutes: 24 * 60
+    });
+    console.log(`[Mindful SW] Đã đặt alarm dọn dẹp lúc 00h00 (sau ${Math.round(delayMinutes)} phút)`);
+  });
+}
+
+/**
+ * Tự động nén và dọn dẹp danh sách video thô lúc 00h00
+ * Sau khi tổng kết phản tư cuối ngày, dữ liệu chi tiết được nén thành bản tóm tắt
+ * và xóa danh sách thô để nhẹ máy, bảo vệ dung lượng và tính riêng tư.
+ */
+function cleanOldDaysAndCompressLogs() {
+  const todayKey = getTodayDateKey();
+  chrome.storage.local.get(null, (allData) => {
+    const toUpdate = {};
+    for (const [key, value] of Object.entries(allData || {})) {
+      if (key.startsWith("stats_") && key < todayKey && value && typeof value === "object") {
+        if (Array.isArray(value.watchedVideos) && value.watchedVideos.length > 0) {
+          let goalCount = 0;
+          let leisureCount = 0;
+          let distractionCount = 0;
+          let unclassifiedCount = 0;
+          const topGoals = [];
+
+          value.watchedVideos.forEach(v => {
+            const cat = v.category || "";
+            if (cat === "Mục tiêu" || cat === "goal") {
+              goalCount++;
+              if (topGoals.length < 5 && v.title) topGoals.push(v.title);
+            } else if (cat === "Giải trí" || cat === "leisure") {
+              leisureCount++;
+            } else if (cat === "Lạc lối" || cat === "distraction") {
+              distractionCount++;
+            } else {
+              unclassifiedCount++;
+            }
+          });
+
+          // Nén thành watchDigest gọn nhẹ
+          value.watchDigest = {
+            totalLogged: value.watchedVideos.length,
+            deepCount: value.watchedVideos.filter(v => (v.watchedSeconds || 0) >= 2 && !v.isImpulsive).length,
+            impulsiveCount: value.watchedVideos.filter(v => (v.watchedSeconds || 0) < 2 || v.isImpulsive).length,
+            goalCount,
+            leisureCount,
+            distractionCount,
+            unclassifiedCount,
+            topGoals,
+            compressedAt: Date.now()
+          };
+
+          // Dọn dẹp danh sách thô để tiết kiệm bộ nhớ & bảo mật
+          value.watchedVideos = [];
+          value.unmatchedQueue = [];
+          toUpdate[key] = value;
+        }
+      }
+    }
+
+    if (Object.keys(toUpdate).length > 0) {
+      chrome.storage.local.set(toUpdate, () => {
+        console.log(`[Mindful SW] 🧹 Đã nén và dọn dẹp danh sách video thô cho ${Object.keys(toUpdate).length} ngày cũ.`);
+      });
+    }
+  });
+}
+
+// Lắng nghe alarm kích hoạt lúc giờ phản tư và giờ dọn dẹp 00h00
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "daily-reflection") {
     handleDaily22hRoutine();
+  }
+  if (alarm.name === "daily-midnight-cleanup") {
+    cleanOldDaysAndCompressLogs();
   }
 });
 
@@ -364,6 +448,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // 8. AI Reflection Coach lúc cuối ngày
   if (msg.type === "GEMINI_REFLECT") {
     handleGeminiReflect(msg).then(res => sendResponse(res));
+    return true;
+  }
+
+  // 8b. AI Reflection Coach Dài Hạn (Tuần / Tháng)
+  if (msg.type === "GEMINI_LONGTERM_COACH") {
+    handleGeminiLongtermCoach(msg).then(res => sendResponse(res));
     return true;
   }
 
@@ -747,6 +837,47 @@ async function handleUpdatePetState(deltaEnergy = 0, newMood = null) {
       chrome.storage.local.set({ pet_state: pet }, () => {
         resolve({ ok: true, petState: pet, pet_state: pet });
       });
+    });
+  });
+}
+
+/**
+ * AI Reflection Coach Dài Hạn: Tổng kết hành vi và chuyển biến tâm lý theo tuần / tháng
+ */
+async function handleGeminiLongtermCoach({
+  periodType = "tuần",
+  periodLabel = "",
+  currentSummary = {},
+  prevSummary = null,
+  masterGoal = "",
+  vulnerableHours = "",
+  topStrengths = ""
+} = {}) {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(["app_config", "pet_state"], async (res) => {
+      const config = res.app_config || {};
+      const apiKey = config.geminiApiKey;
+      const pet = res.pet_state || {};
+      const userMasterGoal = masterGoal || config.masterGoal || "Trở thành phiên bản tốt hơn để gặp người ấy";
+
+      if (!apiKey) {
+        return resolve({
+          ok: false,
+          error: "Chưa cấu hình Google Gemini API Key trong Popup."
+        });
+      }
+
+      const result = await generateLongtermReflectionCoach({
+        periodType,
+        periodLabel,
+        currentSummary,
+        prevSummary,
+        masterGoal: userMasterGoal,
+        vulnerableHours,
+        topStrengths
+      }, apiKey);
+
+      resolve(result);
     });
   });
 }

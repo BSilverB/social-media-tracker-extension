@@ -9,6 +9,11 @@ import {
   pushConfigToFirebase
 } from "./src/utils/firebase-service.js";
 
+import {
+  normalizeCategory,
+  cycleCategory
+} from "./src/content/modules/keyword-filter.js";
+
 // Lấy ngày hiện tại theo giờ địa phương dạng stats_YYYY-MM-DD
 function getTodayKey() {
   const d = new Date();
@@ -16,6 +21,13 @@ function getTodayKey() {
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `stats_${year}-${month}-${day}`;
+}
+
+// Chuyển timestamp sang định dạng HH:mm
+function formatTimeHHmm(ts) {
+  if (!ts) return "--:--";
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 // Chuyển đổi giây sang định dạng giờ phút giây thân thiện
@@ -230,6 +242,112 @@ function updateDashboard() {
     document.getElementById("total-reloads").innerText = totalReloads;
     document.getElementById("total-swipes-all").innerText = totalSwipes;
     document.getElementById("total-loops-all").innerText = totalLoops;
+
+    // Cập nhật Nhật ký nội dung hôm nay (Watch Audit Log) trong tab Tổng quan
+    renderPopupAuditLog(data);
+
+    // Cập nhật tóm tắt xu hướng 7 ngày trong tab Tổng quan & Báo Cáo
+    updatePopupWeeklyReport();
+  });
+}
+
+// Cập nhật Báo cáo Xu hướng 7 Ngày (Tuần Này) trong Popup
+function updatePopupWeeklyReport() {
+  chrome.storage.local.get(null, (items) => {
+    const all = items || {};
+    const dateKeyRegex = /^stats_\d{4}-\d{2}-\d{2}$/;
+    const dates = [];
+    for (const k of Object.keys(all)) {
+      if (dateKeyRegex.test(k)) dates.push(k.replace("stats_", ""));
+    }
+    dates.sort(); // Cũ -> mới
+
+    if (dates.length === 0) dates.push(new Date().toISOString().slice(0, 10));
+
+    const recent7Dates = dates.slice(-7);
+    const prev7Dates = dates.length > 7 ? dates.slice(-14, -7) : [];
+
+    const summarize = (dateList) => {
+      let swipes = 0, reloads = 0, skips = 0, totalEncounters = 0;
+      let goalSec = 0, totalSec = 0;
+      for (const dStr of dateList) {
+        const val = all[`stats_${dStr}`];
+        if (!val) continue;
+        const yt = val.youtube || {};
+        const fb = val.facebook || {};
+        const tk = val.tiktok || {};
+
+        const ytSwipes = yt.shorts?.totalSwipes || 0;
+        const ytReloads = yt.summary?.reloadCount || 0;
+        const ytSkips = (yt.shorts?.impulsiveCount || 0) + (yt.longVideos?.impulsiveCount || 0);
+
+        const fbSwipes = (fb.reels?.totalSwipes || 0) + (fb.feed?.feedPostsScrolled || 0);
+        const fbReloads = fb.summary?.reloadCount || 0;
+        const fbSkips = (fb.reels?.impulsiveCount || 0) + (fb.longVideos?.impulsiveCount || 0);
+
+        const tkSwipes = tk.shorts?.totalSwipes || 0;
+        const tkReloads = tk.summary?.reloadCount || 0;
+
+        const daySwipes = ytSwipes + fbSwipes + tkSwipes;
+        swipes += daySwipes;
+        reloads += ytReloads + fbReloads + tkReloads;
+        skips += ytSkips + fbSkips;
+        totalEncounters += daySwipes + (yt.longVideos?.totalWatched || 0) + (fb.longVideos?.totalWatched || 0);
+
+        const activeSec = (yt.summary?.activeSeconds || 0) + (fb.summary?.activeSeconds || 0) + (tk.summary?.activeSeconds || 0);
+        totalSec += activeSec;
+
+        const watched = Array.isArray(val.watchedVideos) ? val.watchedVideos : [];
+        for (const w of watched) {
+          if (w.category === "goal") goalSec += (w.watchedSeconds || 60);
+        }
+        if (watched.length === 0) {
+          goalSec += (yt.longVideos?.usefulCount || 0) * 300;
+        }
+      }
+      const skipPct = totalEncounters > 0 ? Math.round((skips / totalEncounters) * 100) : 0;
+      const goalPct = totalSec > 0 ? Math.min(100, Math.round((goalSec / totalSec) * 100)) : 0;
+      return { swipes, reloads, skipPct, goalPct };
+    };
+
+    const curr = summarize(recent7Dates);
+    const prev = prev7Dates.length > 0 ? summarize(prev7Dates) : null;
+
+    const elSwipes = document.getElementById("popup-weekly-swipes");
+    const elSwipesDelta = document.getElementById("popup-weekly-swipes-delta");
+    const elGoalPct = document.getElementById("popup-weekly-goal-pct");
+    const elSkipPct = document.getElementById("popup-weekly-skip-pct");
+    const elDeltaBadge = document.getElementById("popup-weekly-delta-badge");
+    const elCoachSnippet = document.getElementById("popup-weekly-coach-snippet");
+
+    if (elSwipes) elSwipes.innerText = curr.swipes.toLocaleString();
+    if (elGoalPct) elGoalPct.innerText = `${curr.goalPct}%`;
+    if (elSkipPct) elSkipPct.innerText = `${curr.skipPct}%`;
+
+    if (prev) {
+      const swipeDelta = Math.round(((curr.swipes - prev.swipes) / Math.max(1, prev.swipes)) * 100);
+      const isGood = swipeDelta <= 0;
+      if (elSwipesDelta) {
+        elSwipesDelta.innerText = `${swipeDelta > 0 ? "+" : ""}${swipeDelta}%`;
+        elSwipesDelta.style.color = isGood ? "#34D399" : "#F87171";
+      }
+      if (elDeltaBadge) {
+        elDeltaBadge.innerText = `${swipeDelta <= 0 ? "Giảm" : "Tăng"} ${Math.abs(swipeDelta)}% Swipes`;
+        elDeltaBadge.style.color = isGood ? "#34D399" : "#F87171";
+        elDeltaBadge.style.background = isGood ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)";
+      }
+      if (elCoachSnippet) {
+        elCoachSnippet.innerText = isGood
+          ? `Bạn đã giảm được ${Math.abs(swipeDelta)}% lượt lướt so với tuần trước. Cán cân năng lượng đang nghiêng về nội dung Mục tiêu!`
+          : `Tuần này số lượt lướt tăng ${swipeDelta}%. Hãy duy trì bài tập thở Box Breathing và hạn mức Pomodoro!`;
+      }
+    } else {
+      if (elSwipesDelta) elSwipesDelta.innerText = "--";
+      if (elDeltaBadge) elDeltaBadge.innerText = "Tuần khởi đầu";
+      if (elCoachSnippet) {
+        elCoachSnippet.innerText = `Đang theo dõi 7 ngày. Hãy duy trì chánh niệm và hạn chế lướt vô thức để giữ năng lượng cho Linh vật!`;
+      }
+    }
   });
 }
 
@@ -264,7 +382,7 @@ function renderRecentVideos(details) {
     .join("");
 }
 
-// Render phân bổ danh mục nội dung
+// Render phân bổ danh mục nội dung (4 nhóm chuẩn: Mục tiêu, Giải trí, Lạc lối, Chưa rõ)
 function renderCategories(details) {
   const container = document.getElementById("yt-categories-list");
   if (!container) return;
@@ -274,13 +392,18 @@ function renderCategories(details) {
     return;
   }
 
-  const counts = {};
+  const counts = { "Mục tiêu": 0, "Giải trí": 0, "Lạc lối": 0, "Chưa rõ": 0 };
   details.forEach((item) => {
-    const cat = item.category || "Khác";
+    const cat = normalizeCategory(item.category);
     counts[cat] = (counts[cat] || 0) + 1;
   });
 
-  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const sorted = Object.entries(counts).filter(([, count]) => count > 0).sort((a, b) => b[1] - a[1]);
+
+  if (sorted.length === 0) {
+    container.innerHTML = `<div style="font-size:11px; color:#64748B; text-align:center; padding:6px 0;">Chưa có dữ liệu phân loại.</div>`;
+    return;
+  }
 
   container.innerHTML = sorted
     .map(
@@ -292,6 +415,164 @@ function renderCategories(details) {
     `
     )
     .join("");
+}
+
+// ─── Nhật Ký Nội Dung Hôm Nay (Popup Watch Audit Log) ─────────────────────────
+
+function renderPopupAuditLog(data) {
+  const container = document.getElementById("popup-audit-videos-list");
+  if (!container) return;
+
+  const rawVideos = Array.isArray(data.watchedVideos) ? data.watchedVideos : [];
+
+  // Lọc video xem sâu (Shorts/Reels >= 2s hoặc video dài không impulsive / completion / >= 180s)
+  const deepVideos = rawVideos.filter(v => {
+    if (v.contentType === "shorts" || v.contentType === "reels") {
+      return (v.watchedSeconds || 0) >= 2;
+    }
+    return v.isCompletion || (v.watchedSeconds || 0) >= 180 || !v.isImpulsive;
+  });
+
+  const ytImpulsive = data.youtube?.shorts?.impulsiveCount || 0;
+  const fbImpulsive = data.facebook?.reels?.impulsiveCount || 0;
+  const ttImpulsive = data.tiktok?.shorts?.impulsiveCount || 0;
+  const ytLongImp = data.youtube?.longVideos?.impulsiveCount || 0;
+  const fbLongImp = data.facebook?.longVideos?.impulsiveCount || 0;
+  const videoImpCount = rawVideos.filter(v => v.isImpulsive || (v.watchedSeconds || 0) < 2).length;
+  const totalImpulsive = Math.max(ytImpulsive + fbImpulsive + ttImpulsive + ytLongImp + fbLongImp, videoImpCount);
+
+  let countGoal = 0;
+  let countLeisure = 0;
+  let countDistraction = 0;
+  let countUnclassified = 0;
+
+  deepVideos.forEach(v => {
+    const cat = normalizeCategory(v.category);
+    if (cat === "Mục tiêu") countGoal++;
+    else if (cat === "Giải trí") countLeisure++;
+    else if (cat === "Lạc lối") countDistraction++;
+    else countUnclassified++;
+  });
+
+  const deepCountEl = document.getElementById("popup-audit-deep-count");
+  const impulsiveCountEl = document.getElementById("popup-audit-impulsive-count");
+  const goalEl = document.getElementById("popup-audit-count-goal");
+  const leisureEl = document.getElementById("popup-audit-count-leisure");
+  const distEl = document.getElementById("popup-audit-count-distraction");
+  const unclassEl = document.getElementById("popup-audit-count-unclassified");
+  const noticeBox = document.getElementById("popup-audit-impulsive-banner");
+  const noticeText = document.getElementById("popup-audit-impulsive-text");
+
+  if (deepCountEl) deepCountEl.textContent = deepVideos.length;
+  if (impulsiveCountEl) impulsiveCountEl.textContent = totalImpulsive;
+  if (goalEl) goalEl.textContent = countGoal;
+  if (leisureEl) leisureEl.textContent = countLeisure;
+  if (distEl) distEl.textContent = countDistraction;
+  if (unclassEl) unclassEl.textContent = countUnclassified;
+
+  if (noticeBox && noticeText) {
+    if (totalImpulsive > 0) {
+      noticeText.textContent = totalImpulsive;
+      noticeBox.style.display = "flex";
+    } else {
+      noticeBox.style.display = "none";
+    }
+  }
+
+  if (deepVideos.length === 0) {
+    container.innerHTML = `<div style="font-size:11px; color:#64748B; text-align:center; padding:6px 0;">Chưa có video xem sâu nào hôm nay.</div>`;
+    return;
+  }
+
+  container.innerHTML = "";
+  deepVideos.forEach(vid => {
+    const normCat = normalizeCategory(vid.category);
+    let badgeClass = "badge-audit-unclassified";
+    let badgeIcon = "⏳";
+    if (normCat === "Mục tiêu") { badgeClass = "badge-audit-goal"; badgeIcon = "🎯"; }
+    else if (normCat === "Giải trí") { badgeClass = "badge-audit-leisure"; badgeIcon = "☕"; }
+    else if (normCat === "Lạc lối") { badgeClass = "badge-audit-distraction"; badgeIcon = "🌀"; }
+
+    const itemEl = document.createElement("div");
+    itemEl.className = "popup-audit-item";
+
+    const leftEl = document.createElement("div");
+    leftEl.style.cssText = "display:flex; align-items:center; gap:6px; min-width:0; flex:1;";
+
+    const timeEl = document.createElement("span");
+    timeEl.style.cssText = "font-size:10px; color:var(--text-muted); font-family:monospace; white-space:nowrap;";
+    timeEl.textContent = formatTimeHHmm(vid.timestamp);
+
+    const titleEl = document.createElement("span");
+    titleEl.style.cssText = "color:#F1F5F9; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1;";
+    titleEl.textContent = vid.title || "Không rõ tiêu đề";
+    titleEl.title = `${vid.title || ""} (${vid.channel || ""})`;
+
+    leftEl.appendChild(timeEl);
+    leftEl.appendChild(titleEl);
+
+    const rightEl = document.createElement("div");
+    rightEl.style.cssText = "display:flex; align-items:center; gap:6px; flex-shrink:0;";
+
+    const badgeEl = document.createElement("span");
+    badgeEl.className = `popup-audit-badge ${badgeClass}`;
+    badgeEl.textContent = `${badgeIcon} ${normCat}`;
+    badgeEl.title = "Bấm để đổi nhãn nhanh (Mục tiêu ➔ Giải trí ➔ Lạc lối ➔ Chưa rõ)";
+
+    badgeEl.addEventListener("click", () => {
+      const nextCat = cycleCategory(vid.category);
+      vid.category = nextCat;
+      vid.userOverridden = true;
+
+      const todayKey = getTodayKey();
+      chrome.storage.local.get([todayKey], (res) => {
+        const storedDay = res[todayKey] || data;
+        if (Array.isArray(storedDay.watchedVideos)) {
+          const target = storedDay.watchedVideos.find(v => v.id === vid.id || (v.title === vid.title && v.timestamp === vid.timestamp));
+          if (target) {
+            target.category = nextCat;
+            target.userOverridden = true;
+          }
+        }
+        chrome.storage.local.set({ [todayKey]: storedDay }, () => {
+          renderPopupAuditLog(storedDay);
+          renderCategories(storedDay.watchedVideos || []);
+        });
+      });
+    });
+
+    const durEl = document.createElement("span");
+    durEl.style.cssText = "font-size:10px; color:var(--text-muted); white-space:nowrap;";
+    const watchedSec = vid.watchedSeconds || 0;
+    const durSec = vid.durationSeconds || 0;
+    if (durSec > 0 && durSec > watchedSec) {
+      durEl.textContent = `${formatDuration(watchedSec)} / ${formatDuration(durSec)}`;
+    } else {
+      durEl.textContent = formatDuration(watchedSec);
+    }
+
+    rightEl.appendChild(badgeEl);
+    rightEl.appendChild(durEl);
+
+    itemEl.appendChild(leftEl);
+    itemEl.appendChild(rightEl);
+    container.appendChild(itemEl);
+  });
+}
+
+function setupPopupAuditLogToggle() {
+  const toggleBtn = document.getElementById("popup-audit-log-toggle");
+  const body = document.getElementById("popup-audit-log-body");
+  const arrow = document.getElementById("popup-audit-arrow");
+  if (!toggleBtn || !body) return;
+
+  toggleBtn.addEventListener("click", () => {
+    const isHidden = body.style.display === "none";
+    body.style.display = isHidden ? "block" : "none";
+    if (arrow) {
+      arrow.style.transform = isHidden ? "rotate(0deg)" : "rotate(-90deg)";
+    }
+  });
 }
 
 // Thiết lập nút Reset dữ liệu ngày hiện tại
@@ -1420,6 +1701,9 @@ function setupDashboardButton() {
 
   const btnHeader = document.getElementById("header-btn-dashboard");
   if (btnHeader) btnHeader.addEventListener("click", openDashboard);
+
+  const btnPopupFull = document.getElementById("btn-popup-open-full-dashboard");
+  if (btnPopupFull) btnPopupFull.addEventListener("click", openDashboard);
 }
 
 // ─── Dev Test Mode Controller ────────────────────────────────────────────────
@@ -1666,6 +1950,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupWardrobeControls();
   setupReflectionButton();
   setupDashboardButton();
+  setupPopupAuditLogToggle();
   setupDevMode();
   updateDashboard();
   updatePetBanner();

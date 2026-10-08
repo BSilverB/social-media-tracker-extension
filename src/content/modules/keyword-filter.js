@@ -115,3 +115,26 @@ export function evaluateVideoContent(title, targetKeywords = []) {
     isEducationalContent: isEducationOrGrowth || isTargetContent
   };
 }
+
+// Chuẩn hóa tên danh mục thành 4 nhãn chuẩn: "Mục tiêu" | "Giải trí" | "Lạc lối" | "Chưa rõ"
+export function normalizeCategory(category) {
+  if (!category) return "Chưa rõ";
+  const c = category.toString().toLowerCase().trim();
+  if (c === "goal" || c === "mục tiêu") return "Mục tiêu";
+  if (c === "leisure" || c === "giải trí") return "Giải trí";
+  if (c === "distraction" || c === "lạc lối" || c === "phân tâm") return "Lạc lối";
+  return "Chưa rõ";
+}
+
+// Xoay vòng đổi nhãn 1-chạm: Mục tiêu -> Giải trí -> Lạc lối -> Chưa rõ -> Mục tiêu
+export function cycleCategory(currentCategory) {
+  const norm = normalizeCategory(currentCategory);
+  switch (norm) {
+    case "Mục tiêu": return "Giải trí";
+    case "Giải trí": return "Lạc lối";
+    case "Lạc lối": return "Chưa rõ";
+    case "Chưa rõ": return "Mục tiêu";
+    default: return "Mục tiêu";
+  }
+}
+
