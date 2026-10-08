@@ -1082,7 +1082,13 @@ async function handleFirebaseRealtimeEvent(eventData) {
           energy: petSource.energy ?? petSource.petEnergy ?? currentPet.energy,
           streakDays: petSource.streakDays ?? petSource.streak ?? currentPet.streakDays,
           currentStreak: petSource.currentStreak ?? petSource.streak ?? currentPet.currentStreak,
-          mood: petSource.mood ?? petSource.petMood ?? currentPet.mood
+          mood: petSource.mood ?? petSource.petMood ?? currentPet.mood,
+          mode: petSource.mode ?? currentPet.mode,
+          accessories: petSource.accessories ?? currentPet.accessories,
+          knowledgeSeeds: petSource.knowledgeSeeds !== undefined ? petSource.knowledgeSeeds : (currentPet.knowledgeSeeds ?? 0),
+          customQuotes: Array.isArray(petSource.customQuotes) ? petSource.customQuotes : (currentPet.customQuotes || []),
+          isWilted: petSource.isWilted !== undefined ? Boolean(petSource.isWilted) : Boolean(currentPet.isWilted),
+          evolutionStage: petSource.evolutionStage || currentPet.evolutionStage || "seedling"
         };
 
         if (JSON.stringify(updatedPet) !== JSON.stringify(currentPet)) {
