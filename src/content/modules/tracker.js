@@ -63,6 +63,7 @@ export class Tracker {
     this._currentYTLongWatchedSec = 0;
     this._ytWatchInterval = null;
     this._studyCheckInTimeout = null;
+    this._adRetryTimeout = null;
     this._checkedInVideos = new Set();
 
     // Facebook state
@@ -269,10 +270,57 @@ export class Tracker {
     return musicRegex.test(t) || musicRegex.test(ch);
   }
 
+  // ─── YouTube Ad Detection ─────────────────────────────────────────────────
+  isAdActive() {
+    if (!this.isYT) return false;
+    try {
+      // 1. Kiểm tra class trên player container của YouTube
+      const player = document.querySelector("#movie_player, .html5-video-player, ytm-player, #player");
+      if (player) {
+        const cls = player.classList;
+        if (cls.contains("ad-showing") || cls.contains("ad-interrupting")) {
+          return true;
+        }
+      }
+
+      // 2. Kiểm tra các DOM element đặc trưng của quảng cáo YouTube
+      const adOverlay = document.querySelector(
+        ".ytp-ad-player-overlay, .ytp-ad-text, .ytp-ad-skip-button-container, .ytp-ad-preview-container, .ytp-ad-duration-remaining"
+      );
+      if (adOverlay) {
+        return true;
+      }
+
+      // 3. Kiểm tra module quảng cáo có chứa phần tử con đang hiển thị
+      const adModule = document.querySelector(".video-ads.ytp-ad-module, .video-ads");
+      if (adModule && adModule.childElementCount > 0 && adModule.offsetParent !== null) {
+        return true;
+      }
+
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ─── YouTube Long Videos ──────────────────────────────────────────────────
 
   startYTLongTracking(videoId, targetKeywords = []) {
+    if (!videoId || typeof videoId !== "string") return;
+
+    // 1. Nếu videoId trùng với video đang theo dõi: tuyệt đối không tạo bản ghi mới hay đếm lại
+    // Ngăn chặn việc player nạp lại luồng khi quảng cáo chèn ngang làm reset bộ đếm
     if (videoId === this._currentYTLongId) return;
+
+    // 2. Nếu đang phát quảng cáo khi bắt đầu video, hoãn khởi tạo tracking cho đến khi hết quảng cáo
+    if (this.isAdActive()) {
+      if (this._adRetryTimeout) clearTimeout(this._adRetryTimeout);
+      this._adRetryTimeout = setTimeout(() => {
+        this.startYTLongTracking(videoId, targetKeywords);
+      }, 1000);
+      return;
+    }
+
     this.endYTLongVideo(targetKeywords);
 
     this._currentYTLongId = videoId;
@@ -282,19 +330,27 @@ export class Tracker {
     this._currentYTLongChannel = "";
     this.onAction();
 
-    // Lấy tiêu đề, kênh & thời lượng sau khi DOM ổn định
-    setTimeout(() => {
-      const titleEl = document.querySelector("h1.ytd-watch-metadata yt-formatted-string, #title h1");
+    // Lấy tiêu đề, kênh & thời lượng sau khi DOM ổn định (bảo vệ không lấy lúc dính ad)
+    const fetchMetadata = () => {
+      if (this.isAdActive()) {
+        setTimeout(fetchMetadata, 1000);
+        return;
+      }
+
+      const titleEl = document.querySelector("h1.ytd-watch-metadata yt-formatted-string, #title h1, h1.title");
       this._currentYTLongTitle = titleEl
         ? titleEl.textContent.trim()
         : document.title.replace("- YouTube", "").trim();
 
-      const channelEl = document.querySelector("#channel-name #text, ytd-channel-name yt-formatted-string");
+      const channelEl = document.querySelector("#channel-name #text, ytd-channel-name yt-formatted-string, .channel-name");
       this._currentYTLongChannel = channelEl ? channelEl.textContent.trim() : "";
 
       const videoEl = document.querySelector("video.html5-main-video");
-      if (videoEl) this._currentYTLongDuration = videoEl.duration || 0;
-    }, 1500);
+      if (videoEl && !this.isAdActive()) {
+        this._currentYTLongDuration = videoEl.duration || 0;
+      }
+    };
+    setTimeout(fetchMetadata, 1500);
 
     // Xóa timer check-in cũ nếu có
     if (this._studyCheckInTimeout) {
@@ -306,9 +362,10 @@ export class Tracker {
     // (Nếu không mở Pomodoro, hoặc đang ở giai đoạn Relax/Break, hoặc Mode là Music -> TUYỆT ĐỐI KHÔNG HỎI)
     if (this.isPomodoroFocus() && this.getFocusMode() === "study") {
       this._studyCheckInTimeout = setTimeout(() => {
-        if (this._currentYTLongId === videoId && !this._checkedInVideos.has(videoId)) {
+        // Chỉ kích hoạt check-in nếu không dính quảng cáo
+        if (this._currentYTLongId === videoId && !this._checkedInVideos.has(videoId) && !this.isAdActive()) {
           if (!this._currentYTLongTitle) {
-            const titleEl = document.querySelector("h1.ytd-watch-metadata yt-formatted-string, #title h1");
+            const titleEl = document.querySelector("h1.ytd-watch-metadata yt-formatted-string, #title h1, h1.title");
             this._currentYTLongTitle = titleEl
               ? titleEl.textContent.trim()
               : document.title.replace("- YouTube", "").trim();
@@ -335,10 +392,17 @@ export class Tracker {
     // Đếm giây xem thực tế
     if (this._ytWatchInterval) clearInterval(this._ytWatchInterval);
     this._ytWatchInterval = setInterval(() => {
+      // CHẶN BỘ ĐẾM KHI ĐANG PHÁT QUẢNG CÁO:
+      // Tuyệt đối không cộng dồn giây xem quảng cáo vào watchedSec của video chính!
+      if (this.isAdActive()) {
+        return;
+      }
+
       const videoEl = document.querySelector("video.html5-main-video");
       if (videoEl && !videoEl.paused && !document.hidden) {
         this._currentYTLongWatchedSec++;
-        if (!this._currentYTLongDuration && videoEl.duration) {
+        // Chỉ lấy duration khi video không dính quảng cáo và duration > 0
+        if ((!this._currentYTLongDuration || this._currentYTLongDuration === 0) && videoEl.duration) {
           this._currentYTLongDuration = videoEl.duration;
         }
       }
@@ -353,6 +417,11 @@ export class Tracker {
       this._studyCheckInTimeout = null;
     }
 
+    if (this._adRetryTimeout) {
+      clearTimeout(this._adRetryTimeout);
+      this._adRetryTimeout = null;
+    }
+
     if (this._ytWatchInterval) {
       clearInterval(this._ytWatchInterval);
       this._ytWatchInterval = null;
@@ -362,14 +431,12 @@ export class Tracker {
     const duration = Math.round(this._currentYTLongDuration);
 
     // KIỂM TRA MODE NHẠC TẬP TRUNG (MUSIC FOCUS)
-    // TÁCH BẠCH RÕ RÀNG: Chỉ tính nhạc riêng khi BẬT Pomodoro VÀ đang ở chu kỳ FOCUS VÀ Mode là Music.
-    // Còn nếu KHÔNG mở Pomodoro, hoặc ở chu kỳ Relax/Break: video ca nhạc và mọi video dài đều được tính
-    // bình thường vào danh mục video dài (longVideos)!
+    // TÁCH BẠCH RÕ RÀNG: Chỉ khi BẬT Pomodoro VÀ đang ở chu kỳ FOCUS VÀ Mode là Music:
+    // Tuyệt đối không tác động đến hạn mức longVideos (không tăng totalWatched, không phạt bốc đồng)!
     const isPomodoroFocusActive = this.isPomodoroFocus();
     const isFocusMusic = isPomodoroFocusActive && this.getFocusMode() === "music";
-    const isMusic = this.isMusicVideo(this._currentYTLongTitle, this._currentYTLongChannel);
 
-    if (isFocusMusic && isMusic) {
+    if (isFocusMusic) {
       if (watched >= 5) {
         if (!this.dayData.youtube.musicVideos) {
           this.dayData.youtube.musicVideos = { totalWatched: 0, durationSeconds: 0 };
