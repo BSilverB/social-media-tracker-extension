@@ -4,7 +4,7 @@
  * bắt F5/Reload, click Home, và quản lý Active Time.
  */
 
-import { saveDayData, formatTimeShort, recordHourlyMetrics } from "../../utils/storage.js";
+import { saveDayData, formatTimeShort, recordHourlyMetrics, getDateStr } from "../../utils/storage.js";
 import { categorizeText, classifyByKeywords, normalizeCategory } from "./keyword-filter.js";
 
 const IDLE_THRESHOLD_MS = 30000;
@@ -34,7 +34,8 @@ export class Tracker {
     onUseful,
     getFocusMode,
     isPomodoroFocus,
-    onStudyCheckInNeeded
+    onStudyCheckInNeeded,
+    onDayRollover
   }) {
     this.dayData = dayData;
     this.platformKey = platformKey;
@@ -48,6 +49,7 @@ export class Tracker {
     this.getFocusMode = getFocusMode || (() => "music");
     this.isPomodoroFocus = isPomodoroFocus || (() => false);
     this.onStudyCheckInNeeded = onStudyCheckInNeeded || null;
+    this.onDayRollover = onDayRollover || null;
 
     this._lastUserActivity = Date.now();
     this._activityThrottle = 0;
@@ -77,6 +79,16 @@ export class Tracker {
     this._timeInterval = null;
   }
 
+  setDayData(newDayData) {
+    this.dayData = newDayData;
+  }
+
+  _checkRolloverBeforeAction() {
+    if (this.onDayRollover && this.dayData?.date && this.dayData.date !== getDateStr()) {
+      this.onDayRollover();
+    }
+  }
+
   // ─── Activity & Time Tracking ─────────────────────────────────────────────
 
   startActivityTracking() {
@@ -94,6 +106,10 @@ export class Tracker {
 
     this._timeInterval = setInterval(() => {
       if (!document.hidden) {
+        if (this.onDayRollover && this.dayData?.date && this.dayData.date !== getDateStr()) {
+          this.onDayRollover();
+          return;
+        }
         const timeSinceActivity = Date.now() - this._lastUserActivity;
         if (timeSinceActivity <= IDLE_THRESHOLD_MS) {
           this.dayData[this.platformKey].summary.activeSeconds++;
@@ -195,6 +211,7 @@ export class Tracker {
 
   handleYTShorts(shortId) {
     if (!shortId || shortId === this._currentYTShortId) return;
+    this._checkRolloverBeforeAction();
 
     // Nếu chuyển video trước 2s -> tính là lướt bốc đồng (impulsive < 2s)
     if (this._shortViewTimer) {
@@ -283,15 +300,20 @@ export class Tracker {
         }
       }
 
-      // 2. Kiểm tra các DOM element đặc trưng của quảng cáo YouTube
-      const adOverlay = document.querySelector(
-        ".ytp-ad-player-overlay, .ytp-ad-text, .ytp-ad-skip-button-container, .ytp-ad-preview-container, .ytp-ad-duration-remaining"
-      );
-      if (adOverlay) {
+      // 2. Kiểm tra các class/phần tử đặc trưng của quảng cáo trên trang
+      if (document.querySelector(".ad-showing, .ad-interrupting")) {
         return true;
       }
 
-      // 3. Kiểm tra module quảng cáo có chứa phần tử con đang hiển thị
+      // 3. Kiểm tra các DOM element đặc trưng của quảng cáo YouTube (bao gồm nút Bỏ qua quảng cáo)
+      const adOverlay = document.querySelector(
+        ".ytp-ad-player-overlay, .ytp-ad-text, .ytp-ad-skip-button-container, .ytp-ad-skip-button, .ytp-skip-ad-button, .ytp-ad-skip-button-modern, .ytp-ad-preview-container, .ytp-ad-duration-remaining, .ytp-ad-message-container"
+      );
+      if (adOverlay && adOverlay.offsetParent !== null) {
+        return true;
+      }
+
+      // 4. Kiểm tra module quảng cáo có chứa phần tử con đang hiển thị
       const adModule = document.querySelector(".video-ads.ytp-ad-module, .video-ads");
       if (adModule && adModule.childElementCount > 0 && adModule.offsetParent !== null) {
         return true;
@@ -411,6 +433,7 @@ export class Tracker {
 
   endYTLongVideo(targetKeywords = []) {
     if (!this._currentYTLongId) return;
+    this._checkRolloverBeforeAction();
 
     if (this._studyCheckInTimeout) {
       clearTimeout(this._studyCheckInTimeout);
@@ -455,12 +478,25 @@ export class Tracker {
       return;
     }
 
+    const adCurrentlyActive = this.isAdActive();
+
+    // Nếu rời video khi quảng cáo đang chạy và chưa xem video chính được 15s: bỏ qua, không phạt oan
+    if (adCurrentlyActive && watched < 15) {
+      this._currentYTLongId = null;
+      this._currentYTLongWatchedSec = 0;
+      this._currentYTLongDuration = 0;
+      this._currentYTLongTitle = "";
+      this._currentYTLongChannel = "";
+      return;
+    }
+
     if (watched >= 3) {
       const watchPct = duration > 0 ? (watched / duration) : 0;
 
       // Completion Rate Logic
       const isUseful = watchPct >= 0.80 || watched >= 180;          // >= 80% hoặc >= 3 phút đủ thời lượng dài
-      const isImpulsive = duration > 60 && watchPct < 0.15;         // < 15% và video > 1 phút
+      // Khuyến nghị A: Video > 60s, thực xem >= 10s nhưng rời trước 45s VÀ < 20% thời lượng, đồng thời không dính ad
+      const isImpulsive = !adCurrentlyActive && duration > 60 && watched >= 10 && watched < 45 && watchPct < 0.20;
 
       const rawCat = classifyByKeywords(this._currentYTLongTitle, this.keywordsConfig);
       const category = normalizeCategory(rawCat);
@@ -485,11 +521,19 @@ export class Tracker {
 
       if (isImpulsive) {
         lv.impulsiveCount++;
-        this.onImpulsive("impulsive_video");
+        this.onImpulsive("impulsive_video", {
+          title: this._currentYTLongTitle,
+          watched,
+          duration
+        });
       }
       if (isUseful) {
         lv.usefulCount = (lv.usefulCount || 0) + 1;
-        this.onUseful("useful_video");
+        this.onUseful("useful_video", {
+          title: this._currentYTLongTitle,
+          watched,
+          duration
+        });
       }
 
       if (!this.dayData.watchedVideos) this.dayData.watchedVideos = [];
@@ -564,6 +608,7 @@ export class Tracker {
 
   handleFBReel(reelId) {
     if (!reelId || reelId === this._currentFBReelId) return;
+    this._checkRolloverBeforeAction();
 
     if (this._fbReelTimer) {
       clearTimeout(this._fbReelTimer);
@@ -606,6 +651,7 @@ export class Tracker {
 
   handleTikTokSwipe() {
     if (!this.dayData.tiktok) return;
+    this._checkRolloverBeforeAction();
 
     if (this._tiktokViewTimer) {
       clearTimeout(this._tiktokViewTimer);

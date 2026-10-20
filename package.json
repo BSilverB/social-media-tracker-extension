@@ -1,0 +1,12 @@
+{
+  "name": "mindful-social-tracker",
+  "version": "2.0.0",
+  "description": "Kiểm soát hành vi lướt mạng xã hội: HUD, Friction Overlay, Pomodoro, Phản tư 22h00.",
+  "scripts": {
+    "build": "esbuild src/content/content-core.js --bundle --outfile=src/content/content-bundle.js --format=iife",
+    "watch": "esbuild src/content/content-core.js --bundle --outfile=src/content/content-bundle.js --format=iife --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

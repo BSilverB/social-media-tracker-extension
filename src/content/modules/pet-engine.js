@@ -34,6 +34,7 @@ export class PetEngine {
       equipped: { head: null, body: null }
     };
 
+    this.energyHistory = [];
     this.lastPokeEnergyTime = 0;
     this._bubbleTimer = null;
     this._speechBubbleEl = null;
@@ -79,79 +80,74 @@ export class PetEngine {
     this.render();
   }
 
+  updateState(state = {}) {
+    if (!state) return;
+    this.energy = state.energy ?? this.energy ?? 100;
+    this.currentStreak = state.currentStreak ?? state.streakDays ?? this.currentStreak ?? 0;
+    this.streakDays = this.currentStreak;
+    this.mode = state.mode || this.mode || "default";
+    this.config.mode = this.mode;
+
+    if (state.knowledgeSeeds !== undefined) this.knowledgeSeeds = state.knowledgeSeeds;
+    if (state.customQuotes !== undefined && Array.isArray(state.customQuotes)) this.customQuotes = state.customQuotes;
+    if (state.isWilted !== undefined) this.isWilted = Boolean(state.isWilted);
+    this.evolutionStage = state.evolutionStage || this._computeEvolutionStage();
+    
+    if (state.mood) {
+      this.mood = state.mood;
+    } else {
+      this._updateMoodFromEnergy();
+    }
+
+    if (state.puppetPhotos) {
+      const p = state.puppetPhotos;
+      this.config.uploadedPuppetImages = {
+        happy: p.happy || p.happyImage || "",
+        neutral: p.neutral || p.neutralImage || "",
+        sad: p.sad || p.sadImage || ""
+      };
+      this.config.uploadedImageBase64 = this.config.uploadedPuppetImages.happy || 
+                                       this.config.uploadedPuppetImages.neutral || 
+                                       this.config.uploadedPuppetImages.sad || 
+                                       state.uploadedImageBase64 || "";
+    } else if (state.uploadedImageBase64) {
+      this.config.uploadedImageBase64 = state.uploadedImageBase64;
+    }
+
+    if (state.aiSprites) {
+      this.config.aiSprites = state.aiSprites;
+    }
+    if (state.accessories) {
+      this._syncAccessories(state.accessories);
+    }
+    if (state.lastPokeEnergyTime) {
+      this.lastPokeEnergyTime = state.lastPokeEnergyTime;
+    }
+
+    if (Array.isArray(state.energyHistory)) {
+      this.energyHistory = state.energyHistory;
+    }
+
+    this.render();
+  }
+
   // ─── Khởi Tạo & Đồng Bộ Storage ─────────────────────────────────────────────
 
   _initFromStorage() {
     if (typeof chrome !== "undefined" && chrome.storage?.local) {
       chrome.storage.local.get(["pet_state"], (res) => {
-        const state = res.pet_state || {};
-        this.energy = state.energy ?? 100;
-        this.currentStreak = state.currentStreak ?? state.streakDays ?? 0;
-        this.streakDays = this.currentStreak;
-        this.mode = state.mode || "default";
-        this.knowledgeSeeds = state.knowledgeSeeds ?? 0;
-        this.customQuotes = Array.isArray(state.customQuotes) ? state.customQuotes : [];
-        this.isWilted = Boolean(state.isWilted);
-        this.evolutionStage = state.evolutionStage || this._computeEvolutionStage();
-        this._updateMoodFromEnergy();
-
-        if (state.puppetPhotos) {
-          this.config.uploadedPuppetImages = {
-            happy: state.puppetPhotos.happyImage || "",
-            neutral: state.puppetPhotos.neutralImage || "",
-            sad: state.puppetPhotos.sadImage || ""
-          };
-          this.config.uploadedImageBase64 = state.puppetPhotos.happyImage || "";
+        if (res && res.pet_state) {
+          this.updateState(res.pet_state);
+        } else {
+          this.render();
         }
-        if (state.aiSprites) {
-          this.config.aiSprites = state.aiSprites;
-        }
-        if (state.lastPokeEnergyTime) {
-          this.lastPokeEnergyTime = state.lastPokeEnergyTime;
-        }
-
-        this._syncAccessories(state.accessories);
-        this.render();
       });
 
       chrome.storage.onChanged.addListener((changes, namespace) => {
         if (namespace !== "local") return;
-
-        let needsRender = false;
-        if (changes.pet_state) {
-          const newState = changes.pet_state.newValue || {};
-          this.energy = newState.energy ?? this.energy;
-          this.currentStreak = newState.currentStreak ?? newState.streakDays ?? this.currentStreak;
-          this.streakDays = this.currentStreak;
-          this.mode = newState.mode || this.mode;
-          if (newState.knowledgeSeeds !== undefined) this.knowledgeSeeds = newState.knowledgeSeeds;
-          if (newState.customQuotes !== undefined && Array.isArray(newState.customQuotes)) this.customQuotes = newState.customQuotes;
-          if (newState.isWilted !== undefined) this.isWilted = Boolean(newState.isWilted);
-          this.evolutionStage = newState.evolutionStage || this._computeEvolutionStage();
-          this._updateMoodFromEnergy();
-
-          if (newState.puppetPhotos) {
-            this.config.uploadedPuppetImages = {
-              happy: newState.puppetPhotos.happyImage || "",
-              neutral: newState.puppetPhotos.neutralImage || "",
-              sad: newState.puppetPhotos.sadImage || ""
-            };
-            this.config.uploadedImageBase64 = newState.puppetPhotos.happyImage || "";
-          }
-          if (newState.aiSprites) {
-            this.config.aiSprites = newState.aiSprites;
-          }
-          if (newState.accessories) {
-            this._syncAccessories(newState.accessories);
-          }
-          if (newState.lastPokeEnergyTime) {
-            this.lastPokeEnergyTime = newState.lastPokeEnergyTime;
-          }
-
-          needsRender = true;
+        if (changes.pet_state && changes.pet_state.newValue) {
+          this.updateState(changes.pet_state.newValue);
         }
-
-        if (needsRender) this.render();
       });
     }
   }
@@ -551,7 +547,7 @@ export class PetEngine {
     // Hỗ trợ 3 ảnh cảm xúc riêng biệt (Happy, Neutral, Sad), fallback sang uploadedImageBase64
     const puppetImgs = this.config.uploadedPuppetImages || {};
     const dedicatedFaceImg = puppetImgs[this.mood];
-    const faceImg = dedicatedFaceImg || this.config.uploadedImageBase64;
+    const faceImg = dedicatedFaceImg || this.config.uploadedImageBase64 || puppetImgs.happy || puppetImgs.neutral || puppetImgs.sad || "";
 
     const overlayHeart = isHappy && !this.isWilted ? `
       <span style="position:absolute; top:-3px; right:-3px; font-size:${Math.max(10, Math.round(size * 0.25))}px; animation:mindfulHeartFloat 1.2s infinite; z-index:5;">❤️</span>
@@ -625,7 +621,7 @@ export class PetEngine {
     const spriteDataUri = sprites[this.mood] || sprites.happy || sprites.neutral || sprites.sad;
 
     if (!spriteDataUri) {
-      if (this.config.uploadedImageBase64) {
+      if (this.config.uploadedImageBase64 || (this.config.uploadedPuppetImages && (this.config.uploadedPuppetImages.happy || this.config.uploadedPuppetImages.neutral))) {
         return this._renderPuppet(size);
       }
       return this._renderDefaultSprout(size);
@@ -664,7 +660,7 @@ export class PetEngine {
    * Tạo HTML hiển thị Pet tương ứng theo chế độ đang kích hoạt
    */
   getPetAvatarHtml(size = 36) {
-    const mode = this.config.mode || "default";
+    const mode = this.config.mode || this.mode || "default";
 
     if (mode === "puppet") {
       return this._renderPuppet(size);
@@ -690,30 +686,35 @@ export class PetEngine {
 
   mount(parentEl) {
     if (!parentEl) return;
-    this.containerEl = document.createElement("div");
-    this.containerEl.id = "mindful-pet-widget";
-    this.containerEl.style.cssText = `
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 3px 8px;
-      background: rgba(0, 0, 0, 0.4);
-      border-radius: 20px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      cursor: pointer;
-      user-select: none;
-      transition: all 0.25s ease;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-    `;
+    if (!this.containerEl) {
+      this.containerEl = document.createElement("div");
+      this.containerEl.id = "mindful-pet-widget";
+      this.containerEl.style.cssText = `
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 8px;
+        background: rgba(0, 0, 0, 0.4);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.25s ease;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+      `;
 
-    this.containerEl.title = "Nhấp vào Pet để trò chuyện & nạp năng lượng!";
-    this.containerEl.addEventListener("click", (e) => {
-      e.stopPropagation();
-      this.handlePoke();
-    });
+      this.containerEl.title = "Nhấp vào Pet để trò chuyện & nạp năng lượng!";
+      this.containerEl.addEventListener("click", (e) => {
+        if (e.target.closest("#mindful-pet-speech-bubble")) return;
+        e.stopPropagation();
+        this.handlePoke();
+      });
+    }
 
-    parentEl.insertBefore(this.containerEl, parentEl.firstChild);
+    if (this.containerEl.parentElement !== parentEl) {
+      parentEl.insertBefore(this.containerEl, parentEl.firstChild);
+    }
     this.render();
   }
 
@@ -728,7 +729,19 @@ export class PetEngine {
 
     const energyColor = this.energy >= 70 ? "#10B981" : this.energy >= 40 ? "#F59E0B" : "#EF4444";
 
-    this.containerEl.innerHTML = `
+    let bodyEl = this.containerEl.querySelector("#mindful-pet-body-content");
+    if (!bodyEl) {
+      bodyEl = document.createElement("div");
+      bodyEl.id = "mindful-pet-body-content";
+      bodyEl.style.cssText = "display:inline-flex; align-items:center; gap:6px;";
+      if (this._speechBubbleEl && this._speechBubbleEl.parentElement === this.containerEl) {
+        this.containerEl.insertBefore(bodyEl, this._speechBubbleEl);
+      } else {
+        this.containerEl.appendChild(bodyEl);
+      }
+    }
+
+    bodyEl.innerHTML = `
       <div style="line-height:0; display:flex; align-items:center;">
         ${this.getPetAvatarHtml(34)}
       </div>
@@ -796,33 +809,56 @@ export class PetEngine {
       quote = reminders[Math.floor(Math.random() * reminders.length)];
     }
 
-    // 4. Nút bấm tương tác Cho ăn Hạt mầm tri thức nếu có
+    // 4. Nút bấm tương tác: Cho ăn Hạt mầm & Xem lịch sử năng lượng
     let feedBtnHtml = "";
     if (this.knowledgeSeeds > 0) {
       feedBtnHtml = `
-        <div style="margin-top:6px; display:flex; justify-content:center;">
-          <button id="mindful-pet-feed-btn" style="
-            background: linear-gradient(135deg, #10B981, #059669);
-            border: none; color: #fff; font-size: 10px; font-weight: 700;
-            padding: 4px 10px; border-radius: 6px; cursor: pointer;
-            box-shadow: 0 2px 8px rgba(16,185,129,0.4); pointer-events: auto;
-          ">
-            🌱 Cho ăn Hạt mầm (${this.knowledgeSeeds}) +15⚡
-          </button>
-        </div>
+        <button id="mindful-pet-feed-btn" style="
+          background: linear-gradient(135deg, #10B981, #059669);
+          border: none; color: #fff; font-size: 10px; font-weight: 700;
+          padding: 4px 10px; border-radius: 6px; cursor: pointer;
+          box-shadow: 0 2px 8px rgba(16,185,129,0.4); pointer-events: auto;
+        ">
+          🌱 Cho ăn Hạt mầm (${this.knowledgeSeeds}) +15⚡
+        </button>
       `;
     }
 
-    // 5. Hiển thị Speech Bubble
-    this._showSpeechBubble(quote, `${energyBonusText}${feedBtnHtml}`, true);
+    const historyBtnHtml = `
+      <button id="mindful-pet-history-btn" style="
+        background: rgba(139, 92, 246, 0.25); border: 1px solid rgba(139, 92, 246, 0.5);
+        color: #C4B5FD; font-size: 9.5px; font-weight: 700; padding: 3px 8px;
+        border-radius: 6px; cursor: pointer; pointer-events: auto;
+      ">
+        📜 Lịch sử năng lượng
+      </button>
+    `;
 
-    // Gắn sự kiện cho nút Cho ăn nếu có
-    if (this.knowledgeSeeds > 0 && this._speechBubbleEl) {
+    const actionButtonsHtml = `
+      <div style="margin-top:6px; display:flex; gap:5px; justify-content:center; flex-wrap:wrap; align-items:center;">
+        ${feedBtnHtml}
+        ${historyBtnHtml}
+      </div>
+    `;
+
+    // 5. Hiển thị Speech Bubble
+    this._showSpeechBubble(quote, `${energyBonusText}${actionButtonsHtml}`, true);
+
+    // Gắn sự kiện cho các nút tương tác
+    if (this._speechBubbleEl) {
       const feedBtn = this._speechBubbleEl.querySelector("#mindful-pet-feed-btn");
       if (feedBtn) {
         feedBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           this.feedSeed();
+        });
+      }
+
+      const historyBtn = this._speechBubbleEl.querySelector("#mindful-pet-history-btn");
+      if (historyBtn) {
+        historyBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.showEnergyHistoryModal();
         });
       }
     }
@@ -841,6 +877,7 @@ export class PetEngine {
     }
 
     const bubble = document.createElement("div");
+    bubble.id = "mindful-pet-speech-bubble";
     this._speechBubbleEl = bubble;
     bubble.style.cssText = `
       position: absolute;
@@ -851,19 +888,19 @@ export class PetEngine {
       backdrop-filter: blur(12px);
       border: 1.5px solid rgba(139, 92, 246, 0.45);
       border-radius: 12px;
-      padding: 7px 12px;
+      padding: 8px 12px;
       color: #F8FAFC;
       font-size: 11px;
       font-weight: 600;
       line-height: 1.35;
       text-align: center;
       white-space: normal;
-      min-width: 140px;
-      max-width: 240px;
+      min-width: 150px;
+      max-width: 250px;
       z-index: 2147483647;
       box-shadow: 0 8px 24px rgba(0,0,0,0.55), 0 0 12px rgba(139,92,246,0.3);
       animation: mindfulBubblePop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-      pointer-events: ${isInteractive ? "auto" : "none"};
+      pointer-events: auto;
     `;
 
     bubble.innerHTML = `
@@ -872,22 +909,41 @@ export class PetEngine {
       <div style="position:absolute; top:100%; left:50%; transform:translateX(-50%); width:0; height:0; border-left:6px solid transparent; border-right:6px solid transparent; border-top:6px solid rgba(15, 23, 42, 0.94);"></div>
     `;
 
+    bubble.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+
     this.containerEl.appendChild(bubble);
 
-    // Tự ẩn sau 4.5 giây
-    this._bubbleTimer = setTimeout(() => {
-      if (this._speechBubbleEl) {
-        this._speechBubbleEl.style.transition = "opacity 0.25s ease, transform 0.25s ease";
-        this._speechBubbleEl.style.opacity = "0";
-        this._speechBubbleEl.style.transform = "translateX(-50%) translateY(4px)";
-        setTimeout(() => {
-          if (this._speechBubbleEl) {
-            this._speechBubbleEl.remove();
-            this._speechBubbleEl = null;
-          }
-        }, 250);
+    const startHideTimer = () => {
+      if (this._bubbleTimer) clearTimeout(this._bubbleTimer);
+      this._bubbleTimer = setTimeout(() => {
+        if (this._speechBubbleEl) {
+          this._speechBubbleEl.style.transition = "opacity 0.25s ease, transform 0.25s ease";
+          this._speechBubbleEl.style.opacity = "0";
+          this._speechBubbleEl.style.transform = "translateX(-50%) translateY(4px)";
+          setTimeout(() => {
+            if (this._speechBubbleEl) {
+              this._speechBubbleEl.remove();
+              this._speechBubbleEl = null;
+            }
+          }, 250);
+        }
+      }, 6500);
+    };
+
+    bubble.addEventListener("mouseenter", () => {
+      if (this._bubbleTimer) {
+        clearTimeout(this._bubbleTimer);
+        this._bubbleTimer = null;
       }
-    }, 4500);
+    });
+
+    bubble.addEventListener("mouseleave", () => {
+      startHideTimer();
+    });
+
+    startHideTimer();
   }
 
   // ─── Kích Hoạt Hành Vi Ngữ Cảnh Thời Gian Thực ─────────────────────────────
@@ -929,7 +985,39 @@ export class PetEngine {
     this.reviveFromWilt();
     this._saveState();
     this.cheerUp();
-    this._showSpeechBubble("Ngon quá! Năng lượng +15⚡ và mầm xanh bừng sáng! 🌱✨");
+
+    const remainingText = this.knowledgeSeeds > 0 ? ` (Còn ${this.knowledgeSeeds} hạt 🌱)` : "";
+    let nextFeedBtnHtml = "";
+    if (this.knowledgeSeeds > 0) {
+      nextFeedBtnHtml = `
+        <div style="margin-top:6px; display:flex; justify-content:center;">
+          <button id="mindful-pet-feed-btn" style="
+            background: linear-gradient(135deg, #10B981, #059669);
+            border: none; color: #fff; font-size: 10px; font-weight: 700;
+            padding: 4px 10px; border-radius: 6px; cursor: pointer;
+            box-shadow: 0 2px 8px rgba(16,185,129,0.4); pointer-events: auto;
+          ">
+            🌱 Cho ăn tiếp (${this.knowledgeSeeds}) +15⚡
+          </button>
+        </div>
+      `;
+    }
+
+    this._showSpeechBubble(
+      `Ngon quá! Năng lượng +15⚡ và mầm xanh bừng sáng! 🌱✨${remainingText}`,
+      nextFeedBtnHtml,
+      true
+    );
+
+    if (this.knowledgeSeeds > 0 && this._speechBubbleEl) {
+      const feedBtn = this._speechBubbleEl.querySelector("#mindful-pet-feed-btn");
+      if (feedBtn) {
+        feedBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.feedSeed();
+        });
+      }
+    }
   }
 
   reviveFromWilt() {
@@ -945,6 +1033,70 @@ export class PetEngine {
 
   // ─── Điều Hòa Năng Lượng & Tâm Trạng (State Machine) ─────────────────────────
 
+  _getReasonLabel(reason, type) {
+    const map = {
+      // Deductions
+      impulsive_video: "Lướt video dài bốc đồng",
+      reload_spam: "Tải lại trang liên tục (F5 spam)",
+      milestone_1: "Chạm ngưỡng mốc 1 (Cảnh báo nhẹ)",
+      milestone_2: "Chạm ngưỡng mốc 2 (Bật màn hình xám)",
+      milestone_3: "Vượt ngưỡng mốc 3 (Quá đà - Box Breathing)",
+      excess_swipes_post_m3: "Tiếp tục lướt sau mốc 3",
+      session_extension: "Mua thêm thời gian phiên lướt",
+      study_distraction: "Xem video ngoài mục tiêu trong giờ học",
+
+      // Rewards
+      pomodoro_complete: "Hoàn thành hiệp tập trung Pomodoro",
+      pomodoro_all_cycles_complete: "Hoàn thành toàn bộ chu kỳ Pomodoro",
+      useful_video: "Xem video học tập / hữu ích ≥ 80%",
+      knowledge_seed: "Cho ăn hạt giống tri thức",
+      digital_detox: "Rời mạng xã hội (Digital Detox)",
+      session_closed_ontime: "Đóng tab đúng giờ theo cam kết",
+      breathing_complete: "Hoàn thành bài tập thở Box Breathing",
+      pet_poke: "Chạm tương tác vuốt ve Pet",
+      study_intent_declared: "Xác nhận mục tiêu học tập"
+    };
+
+    if (map[reason]) return map[reason];
+    return type === "deduct" ? "Trừ năng lượng" : "Cộng năng lượng";
+  }
+
+  _logEnergyChange(type, amount, reason, details = null) {
+    if (!this.energyHistory) this.energyHistory = [];
+
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+    const label = this._getReasonLabel(reason, type);
+    let detailStr = "";
+    if (typeof details === "string") {
+      detailStr = details;
+    } else if (details && details.title) {
+      const watchedStr = details.watched ? ` (${details.watched}s)` : "";
+      detailStr = `${details.title}${watchedStr}`;
+    }
+
+    const entry = {
+      id: `eh_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      timestamp: Date.now(),
+      dateStr,
+      timeStr,
+      type, // "deduct" | "reward"
+      amount,
+      changeStr: type === "deduct" ? `-${amount}⚡` : `+${amount}⚡`,
+      reason,
+      label,
+      detail: detailStr,
+      newEnergy: this.energy
+    };
+
+    this.energyHistory.unshift(entry);
+    if (this.energyHistory.length > 50) {
+      this.energyHistory.pop();
+    }
+  }
+
   _saveState() {
     if (typeof chrome !== "undefined" && chrome.storage?.local) {
       chrome.storage.local.get(["pet_state"], (res) => {
@@ -958,6 +1110,7 @@ export class PetEngine {
           customQuotes: this.customQuotes,
           isWilted: this.isWilted,
           evolutionStage: this._computeEvolutionStage(),
+          energyHistory: this.energyHistory || [],
           lastActiveTimestamp: Date.now()
         });
         chrome.storage.local.set({ pet_state: state });
@@ -980,13 +1133,18 @@ export class PetEngine {
   /**
    * Trừ năng lượng: F5 dồn dập (-5), Mốc 2 (-10), Mốc 3 (-20), gia hạn (+5p: -10, +10p: -20, +15p: -35)
    */
-  penalize(amount = 15, reason = "penalty") {
+  penalize(amount = 15, reason = "penalty", details = null) {
     let deduct = amount;
     if (reason === "reload_spam") deduct = 5;
+    else if (reason === "milestone_1") deduct = 5;
     else if (reason === "milestone_2") deduct = 10;
     else if (reason === "milestone_3" || reason === "impulsive_video") deduct = 20;
 
+    const oldEnergy = this.energy;
     this.energy = Math.max(0, this.energy - deduct);
+    const actualDeduct = oldEnergy - this.energy;
+
+    this._logEnergyChange("deduct", actualDeduct, reason, details);
     this._updateMoodFromEnergy();
     this._saveState();
     this.render();
@@ -1011,14 +1169,21 @@ export class PetEngine {
   /**
    * Hồi phục năng lượng: hoàn thành Pomodoro (+15), xem video hữu ích >= 80% (+10), đóng tab đúng giờ (+5), poke (+3)
    */
-  reward(amount = 10, reason = "reward") {
+  reward(amount = 10, reason = "reward", details = null) {
     let bonus = amount;
     if (reason === "pomodoro_complete") bonus = 15;
     else if (reason === "useful_video") bonus = 10;
     else if (reason === "session_closed_ontime") bonus = 5;
     else if (reason === "pet_poke") bonus = 3;
 
+    const oldEnergy = this.energy;
     this.energy = Math.min(100, this.energy + bonus);
+    const actualBonus = this.energy - oldEnergy;
+
+    if (actualBonus > 0 || oldEnergy === 100) {
+      this._logEnergyChange("reward", actualBonus > 0 ? actualBonus : bonus, reason, details);
+    }
+
     this._updateMoodFromEnergy();
     this._saveState();
     this.render();
@@ -1051,7 +1216,7 @@ export class PetEngine {
 
   // ─── Digital Detox: Hồi phục năng lượng khi tắt ứng dụng / rời xa MXH ───────
   checkIdleRecovery() {
-    if (typeof chrome === "undefined" || !chrome.storage?.local) return;
+    if (typeof chrome !== "undefined" || !chrome.storage?.local) return;
     chrome.storage.local.get(["lastActiveTimestamp", "pet_state"], (res) => {
       const lastActive = res.pet_state?.lastActiveTimestamp || res.lastActiveTimestamp;
       const now = Date.now();
@@ -1063,16 +1228,20 @@ export class PetEngine {
       if (elapsedMinutes >= 30) {
         const bonusSteps = Math.floor(elapsedMinutes / 30);
         const bonus = bonusSteps * 5;
+        const oldEnergy = this.energy;
         this.energy = Math.min(100, this.energy + bonus);
+        const actualBonus = this.energy - oldEnergy;
+
+        const hrs = Math.floor(elapsedMinutes / 60);
+        const mins = elapsedMinutes % 60;
+        const timeStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins} phút`;
+
+        this._logEnergyChange("reward", actualBonus > 0 ? actualBonus : bonus, "digital_detox", `Ngoại tuyến ${timeStr}`);
         this._updateMoodFromEnergy();
         this._saveState();
         this.render();
 
         chrome.storage.local.set({ lastActiveTimestamp: now });
-
-        const hrs = Math.floor(elapsedMinutes / 60);
-        const mins = elapsedMinutes % 60;
-        const timeStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins} phút`;
 
         this.showPetToast(
           `Chào mừng bạn quay lại! Bạn đã rời xa mạng xã hội được <b>${timeStr}</b>.<br/>Linh vật đã được nghỉ ngơi và hồi phục <b style="color:#FEF08A;">+${bonus}⚡</b> năng lượng! ✨`,
@@ -1082,6 +1251,103 @@ export class PetEngine {
         chrome.storage.local.set({ lastActiveTimestamp: now });
       }
     });
+  }
+
+  // ─── Modal Nhật Ký Năng Lượng Pet Trên Trang ─────────────────────────────
+  showEnergyHistoryModal() {
+    const existing = document.getElementById("mindful-pet-energy-history-modal");
+    if (existing) existing.remove();
+
+    const overlay = document.createElement("div");
+    overlay.id = "mindful-pet-energy-history-modal";
+    overlay.style.cssText = `
+      position: fixed !important;
+      top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important;
+      background: rgba(15, 23, 42, 0.8) !important;
+      backdrop-filter: blur(8px) !important;
+      z-index: 2147483647 !important;
+      display: flex !important; align-items: center !important; justify-content: center !important;
+      padding: 16px !important;
+      box-sizing: border-box !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      animation: mindfulBubblePop 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    `;
+
+    const listHtml = (this.energyHistory && this.energyHistory.length > 0)
+      ? this.energyHistory.map(item => {
+          const isReward = item.type === "reward";
+          const color = isReward ? "#10B981" : "#EF4444";
+          const bg = isReward ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.15)";
+          const border = isReward ? "rgba(16, 185, 129, 0.35)" : "rgba(239, 68, 68, 0.35)";
+          return `
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; padding:8px 10px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; margin-bottom:6px;">
+              <div style="display:flex; flex-direction:column; gap:2px; max-width:72%;">
+                <div style="font-size:11px; font-weight:700; color:#F8FAFC;">${item.label}</div>
+                ${item.detail ? `<div style="font-size:10px; color:#94A3B8; word-break:break-word;">${item.detail}</div>` : ""}
+                <div style="font-size:9.5px; color:#64748B;">${item.dateStr || ""} ${item.timeStr} • Sau đổi: <b style="color:#38BDF8;">${item.newEnergy}%⚡</b></div>
+              </div>
+              <span style="font-size:11px; font-weight:800; color:${color}; background:${bg}; border:1px solid ${border}; padding:2px 7px; border-radius:6px; white-space:nowrap;">
+                ${item.changeStr}
+              </span>
+            </div>
+          `;
+        }).join("")
+      : `<div style="text-align:center; padding:24px; color:#94A3B8; font-size:11.5px;">Chưa có sự kiện năng lượng nào được ghi nhận.</div>`;
+
+    overlay.innerHTML = `
+      <div style="
+        background: #0F172A;
+        border: 1.5px solid rgba(139, 92, 246, 0.4);
+        border-radius: 14px;
+        width: 100%;
+        max-width: 420px;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 16px 40px rgba(0,0,0,0.6);
+        overflow: hidden;
+      ">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid rgba(255,255,255,0.1); background:rgba(30,41,67,0.6);">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:16px;">📜</span>
+            <span style="font-size:13px; font-weight:700; color:#F8FAFC;">Nhật Ký Năng Lượng Linh Vật</span>
+          </div>
+          <button id="mindful-close-history-modal" style="background:none; border:none; color:#94A3B8; font-size:18px; cursor:pointer; line-height:1;">&times;</button>
+        </div>
+
+        <div style="padding:8px 16px; background:rgba(0,0,0,0.25); border-bottom:1px solid rgba(255,255,255,0.06); display:flex; justify-content:space-between; align-items:center; font-size:11px;">
+          <span style="color:#94A3B8;">Năng lượng hiện tại: <b style="color:#10B981;">${this.energy}%⚡</b></span>
+          <button id="mindful-clear-history-modal" style="background:none; border:none; color:#EF4444; font-size:10px; cursor:pointer; text-decoration:underline;">Xóa lịch sử</button>
+        </div>
+
+        <div style="overflow-y:auto; padding:12px 16px; flex:1;">
+          ${listHtml}
+        </div>
+
+        <div style="padding:10px 16px; border-top:1px solid rgba(255,255,255,0.08); text-align:right; background:rgba(15,23,42,0.95);">
+          <button id="mindful-btn-done-history" style="background:linear-gradient(135deg, #6366F1, #8B5CF6); border:none; color:#fff; font-size:11px; font-weight:700; padding:6px 16px; border-radius:8px; cursor:pointer;">Đóng</button>
+        </div>
+      </div>
+    `;
+
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+
+    const closeBtn = overlay.querySelector("#mindful-close-history-modal");
+    const doneBtn = overlay.querySelector("#mindful-btn-done-history");
+    const clearBtn = overlay.querySelector("#mindful-clear-history-modal");
+
+    closeBtn?.addEventListener("click", () => overlay.remove());
+    doneBtn?.addEventListener("click", () => overlay.remove());
+    clearBtn?.addEventListener("click", () => {
+      this.energyHistory = [];
+      this._saveState();
+      overlay.remove();
+      this.showEnergyHistoryModal();
+    });
+
+    document.body.appendChild(overlay);
   }
 
   // ─── Tầng 1: Thông Báo Nhắc Nhở Trọng Tâm (Center Overlay với Backdrop Blur) ───

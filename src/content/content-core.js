@@ -4,7 +4,7 @@
  * Chỉ chạy trên top-level window và chỉ trên youtube.com / facebook.com
  */
 
-import { loadAppData, saveDayData, getTodayKey } from "../utils/storage.js";
+import { loadAppData, saveDayData, getTodayKey, getDateStr, createDefaultDayData } from "../utils/storage.js";
 import { Tracker } from "./modules/tracker.js";
 import { HUDManager } from "./modules/hud.js";
 import { FrictionManager } from "./modules/friction.js";
@@ -56,6 +56,52 @@ let petEngine = null;
 let isReady = false;
 let currentFocusMode = "music";
 const triggeredMilestones = { m1: false, m2: false, m3: false };
+let isRollingOverDay = false;
+
+// ─── Tự động Reset & Chuyển Ngày khi qua mốc 00h00 ───────────────────────────
+function checkDayRollover(force = false) {
+  if (!isReady || !dayData) return;
+  const todayStr = getDateStr();
+  if (!force && dayData.date === todayStr) return;
+  if (isRollingOverDay) return;
+  isRollingOverDay = true;
+
+  console.log(`[Mindful Tracker] 🌅 Phát hiện mốc chuyển ngày từ ${dayData.date} sang ${todayStr}. Đang reset dữ liệu ngày mới...`);
+
+  // 1. Lưu lại toàn bộ dữ liệu ngày cũ theo đúng key ngày cũ
+  const oldDayData = dayData;
+  saveDayData(oldDayData, platformKey, true);
+
+  // 2. Nạp hoặc khởi tạo dữ liệu cho ngày hôm nay
+  const newDayKey = getTodayKey();
+  chrome.storage.local.get([newDayKey], (res) => {
+    const freshDayData = res[newDayKey] || createDefaultDayData(todayStr);
+    dayData = freshDayData;
+
+    // Cập nhật tham chiếu trong các module
+    tracker?.setDayData(dayData);
+    hud?.setDayData(dayData);
+    friction?.setDayData(dayData);
+
+    // 3. Reset các cờ cảnh báo mốc của ngày mới
+    triggeredMilestones.m1 = false;
+    triggeredMilestones.m2 = false;
+    triggeredMilestones.m3 = false;
+
+    isRollingOverDay = false;
+    evaluateGrayscaleMode();
+    onUpdate();
+
+    // 4. Thông báo thân thiện qua Pet Toast
+    const d = new Date();
+    const displayDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+    petEngine?.showPetToast(
+      `🌙 Đã sang ngày mới (${displayDate})! Chỉ số lướt mạng đã được reset về 0. Khuya rồi, hãy nghỉ ngơi sớm bạn nhé! 💤`,
+      { title: "🌅 Chuyển Sang Ngày Mới" }
+    );
+    petEngine?.triggerLateNight();
+  });
+}
 
 // ─── Toast helper (ưu tiên hiển thị Pet Toast sinh động) ─────────────────────
 function showToast(msg, durationMs = 4000) {
@@ -254,6 +300,7 @@ function evaluateGrayscaleMode() {
 
 // ─── Kiểm tra friction trigger & cảnh báo phân tầng ─────────────────────────
 function onAction() {
+  checkDayRollover();
   evaluateGrayscaleMode();
 
   // Không kích hoạt friction khi đang Break Session
@@ -355,6 +402,7 @@ function onUpdate() {
 // ─── Xử lý route thay đổi ────────────────────────────────────────────────────
 function onRouteChanged() {
   if (!isReady) return;
+  checkDayRollover();
   const path = location.pathname;
   const targetKeywords = appConfig?.targetKeywords || [];
 
@@ -407,6 +455,10 @@ function createDevCallbacks() {
       evaluateGrayscaleMode();
       onUpdate();
       showToast(`⚡ Dev: Đã chỉnh năng lượng Pet: ${val}%`, 2000);
+    },
+    rolloverMidnight: () => {
+      checkDayRollover(true);
+      showToast("🌅 Dev: Đã kích hoạt chuyển ngày mới (00h00)!", 2500);
     },
     expireSession: () => {
       let sess = null;
@@ -510,6 +562,11 @@ function createDevCallbacks() {
 
 // ─── Lắng nghe lệnh từ Popup Dev Test Mode ────────────────────────────────────
 chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
+  if (req.type === "MIDNIGHT_DAY_ROLLOVER" || req.type === "DEV_MIDNIGHT_ROLLOVER") {
+    checkDayRollover(true);
+    sendResponse({ ok: true });
+    return true;
+  }
   const callbacks = createDevCallbacks();
   if (req.type === "DEV_EXPIRE_SESSION") {
     callbacks.expireSession();
@@ -774,7 +831,8 @@ loadAppData(({ config, dayData: loaded, petState, pomodoroState }) => {
     onUseful: () => {
       petEngine?.reward(10, "useful_video");
       petEngine?.addKnowledgeSeed();
-    }
+    },
+    onDayRollover: () => checkDayRollover()
   });
 
   tracker.startActivityTracking();
@@ -802,6 +860,7 @@ loadAppData(({ config, dayData: loaded, petState, pomodoroState }) => {
 
   // Đếm ngược phiên lướt và cập nhật HUD định kỳ mỗi 5s
   setInterval(() => {
+    checkDayRollover();
     friction?.checkSessionTimer(petEngine);
     onUpdate();
   }, 5000);

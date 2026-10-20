@@ -200,9 +200,11 @@ export class PomodoroManager {
   }
 
   // Cập nhật cấu hình từ popup
-  updateConfig(newPomodoroConfig) {
+  updateConfig(newPomodoroConfig, oldPomodoroConfig = null) {
+    if (!newPomodoroConfig) return;
     this.config = newPomodoroConfig;
-    if (!newPomodoroConfig.enabled && this.state.enabled) {
+    // Chỉ dừng khi người dùng chủ động tắt công tắc Pomodoro trong cài đặt (từ true sang false)
+    if (oldPomodoroConfig && oldPomodoroConfig.enabled === true && newPomodoroConfig.enabled === false && this.state.enabled) {
       this.stop();
     }
   }

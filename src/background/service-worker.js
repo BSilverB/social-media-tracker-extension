@@ -506,6 +506,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // 12b. Dev Mode: Kích hoạt chuyển ngày mới 00h00
+  if (msg.type === "TRIGGER_DEV_MIDNIGHT") {
+    cleanOldDaysAndCompressLogs();
+    chrome.tabs.query({}, (tabs) => {
+      for (const tab of tabs) {
+        if (tab.id) {
+          chrome.tabs.sendMessage(tab.id, { type: "MIDNIGHT_DAY_ROLLOVER" }).catch(() => {});
+        }
+      }
+    });
+    sendResponse({ ok: true });
+    return true;
+  }
+
   // 13. Dev Mode: Kích hoạt mở tab phản tư ngay lập tức
   if (msg.type === "TRIGGER_DEV_REFLECTION") {
     openReflectionTab();

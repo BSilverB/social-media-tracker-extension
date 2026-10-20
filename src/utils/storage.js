@@ -275,10 +275,11 @@ export function saveDayData(dayData, platformKey, immediate = false) {
   const executeSave = () => {
     if (!pendingSave) return;
     pendingSave = false;
-    const todayKey = getTodayKey();
+    const targetDate = dayData?.date || getDateStr();
+    const targetKey = `stats_${targetDate}`;
 
-    chrome.storage.local.get([todayKey], (res) => {
-      const existing = res[todayKey] || createDefaultDayData();
+    chrome.storage.local.get([targetKey], (res) => {
+      const existing = res[targetKey] || createDefaultDayData(targetDate);
 
       if (platformKey === "youtube" && dayData.youtube) {
         existing.youtube = dayData.youtube;
@@ -298,7 +299,7 @@ export function saveDayData(dayData, platformKey, immediate = false) {
       }
 
       const payload = {};
-      payload[todayKey] = existing;
+      payload[targetKey] = existing;
       chrome.storage.local.set(payload);
     });
   };

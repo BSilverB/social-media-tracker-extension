@@ -11,6 +11,10 @@ desktop.ini
 # Environment / local configs
 .env
 .env.local
+*.docx
+
+# Node
+node_modules/
 
 # Editor directories
 .vscode/

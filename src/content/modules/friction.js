@@ -35,6 +35,10 @@ export class FrictionManager {
     };
   }
 
+  setDayData(newDayData) {
+    this.dayData = newDayData;
+  }
+
   setPetEngine(pe) {
     this.petEngine = pe;
   }

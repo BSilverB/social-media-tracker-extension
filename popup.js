@@ -1889,10 +1889,24 @@ function setupKnowledgeAndQuotesControls() {
           return;
         }
         pet.knowledgeSeeds = currentSeeds - 1;
-        pet.energy = Math.min(100, (pet.energy || 0) + 15);
+        const prevEnergy = pet.energy ?? 100;
+        pet.energy = Math.min(100, prevEnergy + 15);
         pet.isWilted = false;
         pet.mood = pet.energy >= 70 ? "happy" : pet.energy >= 40 ? "neutral" : "sad";
-        chrome.storage.local.set({ pet_state: pet }, () => {
+        if (!Array.isArray(pet.energyHistory)) pet.energyHistory = [];
+        pet.energyHistory.unshift({
+          id: "eh_" + Date.now(),
+          timestamp: Date.now(),
+          type: "reward",
+          amount: 15,
+          reason: "knowledge_seed",
+          label: "🌱 Ăn hạt giống tri thức",
+          detail: "Được thưởng từ video học tập bổ ích",
+          prevEnergy: prevEnergy,
+          newEnergy: pet.energy
+        });
+        if (pet.energyHistory.length > 50) pet.energyHistory = pet.energyHistory.slice(0, 50);
+        chrome.storage.local.set({ pet_state: pet, petState: pet }, () => {
           updatePetBanner();
           renderQuotesList();
           showDevToast("🌱 Đã cho Pet ăn! +15⚡ năng lượng và phục hồi mầm xanh tươi tốt!");
@@ -2181,7 +2195,9 @@ function setupDevMode() {
     const enabled = toggleDev.checked;
     chrome.storage.local.set({ dev_mode_enabled: enabled });
     tabDevBtn.style.display = enabled ? "flex" : "none";
-    if (!enabled && tabDevBtn.classList.contains("active")) {
+    if (enabled) {
+      tabDevBtn.click();
+    } else if (tabDevBtn.classList.contains("active")) {
       const tabYt = document.getElementById("tab-yt");
       if (tabYt) tabYt.click();
     }
@@ -2305,6 +2321,17 @@ function setupDevMode() {
     });
   });
 
+  // 7b. Thử nghiệm chuyển ngày mới (00h00 Midnight Rollover)
+  document.getElementById("dev-btn-rollover-midnight")?.addEventListener("click", () => {
+    chrome.runtime.sendMessage({ type: "TRIGGER_DEV_MIDNIGHT" }, () => {
+      showDevToast("🌅 Đã kích hoạt chuyển ngày mới 00h00!");
+      setTimeout(() => {
+        updateDashboard();
+        updatePetBanner();
+      }, 500);
+    });
+  });
+
   // 8. Reset toàn bộ dữ liệu Test
   document.getElementById("dev-btn-reset-all")?.addEventListener("click", () => {
     if (!confirm("Bạn có chắc chắn muốn khôi phục dữ liệu gốc không? (Năng lượng 100⚡, Streak 0 ngày, xóa dữ liệu test hôm nay)")) return;
@@ -2337,6 +2364,20 @@ function checkIdleRecoveryPopup() {
       if (newEnergy >= 50) pet.mood = "happy";
       else if (newEnergy >= 20) pet.mood = "neutral";
 
+      if (!Array.isArray(pet.energyHistory)) pet.energyHistory = [];
+      pet.energyHistory.unshift({
+        id: "eh_" + Date.now(),
+        timestamp: now,
+        type: "reward",
+        amount: bonus,
+        reason: "digital_detox",
+        label: "🌿 Digital Detox (Nghỉ ngơi offline)",
+        detail: `Không lướt mạng trong ${elapsedMinutes} phút`,
+        prevEnergy: oldEnergy,
+        newEnergy: newEnergy
+      });
+      if (pet.energyHistory.length > 50) pet.energyHistory = pet.energyHistory.slice(0, 50);
+
       chrome.storage.local.set({
         petState: pet,
         pet_state: pet,
@@ -2364,6 +2405,97 @@ function checkIdleRecoveryPopup() {
   });
 }
 
+// ─── Modal Xem Lịch Sử Năng Lượng Pet ───────────────────────────────────────
+function setupPetEnergyHistoryModal() {
+  const modal = document.getElementById("modal-pet-history");
+  const btnOpen = document.getElementById("btn-open-pet-history");
+  const btnClose = document.getElementById("btn-close-pet-history");
+  const btnClear = document.getElementById("btn-clear-pet-history");
+  const listEl = document.getElementById("pet-history-list");
+  const energyEl = document.getElementById("history-modal-current-energy");
+
+  if (!modal) return;
+
+  function renderList() {
+    chrome.storage.local.get(["pet_state", "petState"], (res) => {
+      const pet = res.pet_state || res.petState || {};
+      const energy = pet.energy ?? 100;
+      if (energyEl) energyEl.textContent = `${energy}%`;
+
+      const history = Array.isArray(pet.energyHistory) ? pet.energyHistory : [];
+      if (!listEl) return;
+
+      if (history.length === 0) {
+        listEl.innerHTML = `
+          <div style="text-align:center; padding:28px 10px; color:var(--text-muted); font-size:11px;">
+            <div style="font-size:24px; margin-bottom:6px;">🍃</div>
+            Chưa có ghi chép năng lượng nào.<br/>
+            Các lượt cộng/trừ năng lượng sẽ hiển thị chi tiết tại đây.
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = history.map(item => {
+        const isReward = item.type === "reward";
+        const sign = isReward ? "+" : "-";
+        const badgeColor = isReward ? "#10B981" : "#EF4444";
+        const badgeBg = isReward ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)";
+        const borderCol = isReward ? "rgba(16,185,129,0.25)" : "rgba(239,68,68,0.25)";
+        const d = new Date(item.timestamp || Date.now());
+        const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const detailStr = item.detail ? `<div style="font-size:10px; color:var(--text-secondary); margin-top:2px; word-break:break-word;">${item.detail}</div>` : "";
+        const prevText = item.prevEnergy !== undefined ? `(${item.prevEnergy}% ➔ ${item.newEnergy}%)` : `(${item.newEnergy}%)`;
+
+        return `
+          <div style="background:rgba(0,0,0,0.3); border:1px solid ${borderCol}; border-radius:8px; padding:8px 10px; display:flex; flex-direction:column; gap:2px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:11.5px; font-weight:700; color:#F8FAFC;">${item.label || item.reason || 'Biến động năng lượng'}</span>
+              <span style="background:${badgeBg}; color:${badgeColor}; border:1px solid ${borderCol}; font-size:11px; font-weight:800; padding:1px 6px; border-radius:10px;">${sign}${item.amount}⚡</span>
+            </div>
+            ${detailStr}
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:9.5px; color:var(--text-muted); margin-top:3px;">
+              <span>🕒 ${timeStr}</span>
+              <span style="color:#94A3B8;">${prevText}</span>
+            </div>
+          </div>
+        `;
+      }).join("");
+    });
+  }
+
+  if (btnOpen) {
+    btnOpen.onclick = () => {
+      modal.style.display = "flex";
+      renderList();
+    };
+  }
+
+  if (btnClose) {
+    btnClose.onclick = () => {
+      modal.style.display = "none";
+    };
+  }
+
+  modal.onclick = (e) => {
+    if (e.target === modal) modal.style.display = "none";
+  };
+
+  if (btnClear) {
+    btnClear.onclick = () => {
+      if (!confirm("Bạn có chắc muốn xóa toàn bộ lịch sử năng lượng không?")) return;
+      chrome.storage.local.get(["pet_state", "petState"], (res) => {
+        const pet = res.pet_state || res.petState || {};
+        pet.energyHistory = [];
+        chrome.storage.local.set({ pet_state: pet, petState: pet }, () => {
+          renderList();
+          showDevToast("✓ Đã xóa sạch nhật ký năng lượng.");
+        });
+      });
+    };
+  }
+}
+
 // Khởi chạy khi popup load
 document.addEventListener("DOMContentLoaded", () => {
   setupTabs();
@@ -2373,6 +2505,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupPetControls();
   setupWardrobeControls();
   setupKnowledgeAndQuotesControls();
+  setupPetEnergyHistoryModal();
   setupReflectionButton();
   setupDashboardButton();
   setupPopupAuditLogToggle();
@@ -2383,6 +2516,13 @@ document.addEventListener("DOMContentLoaded", () => {
   updateDashboard();
   updatePetBanner();
   checkIdleRecoveryPopup();
+  setInterval(() => {
+    const todayBadge = document.getElementById("today-badge");
+    if (todayBadge && todayBadge.innerText !== getTodayKey()) {
+      updateDashboard();
+      updatePetBanner();
+    }
+  }, 10000);
 });
 
 // Lắng nghe thay đổi real-time từ storage

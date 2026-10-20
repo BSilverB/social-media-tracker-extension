@@ -30,8 +30,9 @@
         "https://*.facebook.com/*",
         "https://*.tiktok.com/*"
       ],
-      "js": ["src/content/content-main.js"],
-      "run_at": "document_idle"
+      "js": ["src/content/content-bundle.js"],
+      "run_at": "document_idle",
+      "all_frames": false
     }
   ],
 
@@ -42,15 +43,12 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "src/reflection/reflection.html", 
-        "src/reflection/reflection.js",
-        "src/dashboard/dashboard.html",
-        "src/dashboard/dashboard.js",
-        "src/content/content-core.js",
-        "src/content/modules/*.js",
-        "src/utils/storage.js"
+        "src/reflection/*", 
+        "src/dashboard/*"
       ],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }

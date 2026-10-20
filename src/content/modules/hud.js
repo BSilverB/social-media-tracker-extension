@@ -36,12 +36,18 @@ export class HUDManager {
 
     this._isMinimized = false;
     this._isDragging = false;
+    this._hasMoved = false;
     this._dragStartX = 0;
     this._dragStartY = 0;
     this._initialLeft = 0;
     this._initialTop = 0;
 
     this.hud = this._createHUD();
+  }
+
+  setDayData(newDayData) {
+    this.dayData = newDayData;
+    this.update();
   }
 
   setFocusMode(mode) {
@@ -85,9 +91,11 @@ export class HUDManager {
   // ─── Drag & Drop ──────────────────────────────────────────────────────────
 
   _onDragStart(e) {
-    if (e.target && e.target.closest("#mindful-hud-minimize, #mindful-hud-toggle")) return;
+    // Không kích hoạt kéo khi bấm vào các nút điều khiển tương tác
+    if (e.target && e.target.closest("#mindful-hud-minimize, #mindful-hud-toggle, #mindful-hud-start-pomodoro, #mindful-hud-stop-pomodoro, #mindful-hud-focus-mode-btn, #mindful-hud-dev-btn, #mindful-pet-widget, button, input, a")) return;
 
     this._isDragging = true;
+    this._hasMoved = false;
     this.hud.style.cursor = "grabbing";
 
     const clientX = e.clientX ?? e.touches?.[0]?.clientX ?? 0;
@@ -101,17 +109,22 @@ export class HUDManager {
     this._initialTop = rect.top;
 
     window.addEventListener("mousemove", this._onDragMove, { passive: false });
-    window.addEventListener("mouseup", this._onDragEnd);
+    window.addEventListener("mouseup", this._onDragEnd, { capture: true });
     window.addEventListener("touchmove", this._onDragMove, { passive: false });
-    window.addEventListener("touchend", this._onDragEnd);
+    window.addEventListener("touchend", this._onDragEnd, { capture: true });
   }
 
   _onDragMove = (e) => {
     if (!this._isDragging) return;
-    e.preventDefault();
 
     const clientX = e.clientX ?? e.touches?.[0]?.clientX ?? 0;
     const clientY = e.clientY ?? e.touches?.[0]?.clientY ?? 0;
+
+    if (Math.abs(clientX - this._dragStartX) > 3 || Math.abs(clientY - this._dragStartY) > 3) {
+      this._hasMoved = true;
+    }
+
+    e.preventDefault();
 
     const maxLeft = window.innerWidth - this.hud.offsetWidth - 10;
     const maxTop = window.innerHeight - this.hud.offsetHeight - 10;
@@ -122,17 +135,29 @@ export class HUDManager {
     this.applyPosition(`${newTop}px`, `${newLeft}px`);
   };
 
-  _onDragEnd = () => {
+  _onDragEnd = (e) => {
     if (!this._isDragging) return;
     this._isDragging = false;
     this.hud.style.cursor = "grab";
 
     window.removeEventListener("mousemove", this._onDragMove);
-    window.removeEventListener("mouseup", this._onDragEnd);
+    window.removeEventListener("mouseup", this._onDragEnd, { capture: true });
     window.removeEventListener("touchmove", this._onDragMove);
-    window.removeEventListener("touchend", this._onDragEnd);
+    window.removeEventListener("touchend", this._onDragEnd, { capture: true });
 
-    saveHUDPosition({ top: this.hud.style.top, left: this.hud.style.left });
+    if (this._hasMoved) {
+      // Chặn sự kiện click phát sinh sau khi vừa kéo thả HUD
+      const suppressClick = (clickEvt) => {
+        clickEvt.stopPropagation();
+        clickEvt.preventDefault();
+      };
+      window.addEventListener("click", suppressClick, { capture: true, once: true });
+      setTimeout(() => {
+        window.removeEventListener("click", suppressClick, { capture: true });
+      }, 50);
+
+      saveHUDPosition({ top: this.hud.style.top, left: this.hud.style.left });
+    }
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -273,10 +298,29 @@ export class HUDManager {
       pomodoroSection = `<span id="mindful-hud-start-pomodoro" style="cursor:pointer; background:linear-gradient(135deg, rgba(139,92,246,0.3), rgba(99,102,241,0.3)); color:#C4B5FD; border:1px solid rgba(139,92,246,0.5); font-size:10.5px; padding:2px 7px; border-radius:6px; font-weight:700;" title="Bắt đầu phiên tập trung Pomodoro">🍅 Bắt đầu Pomodoro</span>`;
     }
 
-    this.hud.innerHTML = `
-      <span id="mindful-hud-pet-slot" style="display:inline-flex;align-items:center;"></span>
+    // Kiểm tra cấu trúc HUD đã có slot Pet và content chưa
+    let petSlot = this.hud.querySelector("#mindful-hud-pet-slot");
+    let contentSlot = this.hud.querySelector("#mindful-hud-content");
+
+    if (!petSlot || !contentSlot) {
+      this.hud.innerHTML = `
+        <span id="mindful-hud-pet-slot" style="display:inline-flex;align-items:center;"></span>
+        <span id="mindful-hud-content" style="display:inline-flex;align-items:center;gap:8px;"></span>
+      `;
+      petSlot = this.hud.querySelector("#mindful-hud-pet-slot");
+      contentSlot = this.hud.querySelector("#mindful-hud-content");
+
+      if (this.petEngine && petSlot) {
+        this.petEngine.mount(petSlot);
+      }
+    } else if (this.petEngine && petSlot && !petSlot.hasChildNodes()) {
+      this.petEngine.mount(petSlot);
+    }
+
+    const activeSec = summary.activeSeconds ?? summary.activeTimeSeconds ?? 0;
+    contentSlot.innerHTML = `
       <span style="font-weight:700; color:#A78BFA;">${this.isYT ? "YouTube" : "Facebook"}</span>
-      <span>⏱ Active: <b style="color:#38BDF8">${formatTimeShort(summary.activeTimeSeconds)}</b></span>
+      <span>⏱ Active: <b style="color:#38BDF8">${formatTimeShort(activeSec)}</b></span>
       ${sessionBadge}
       ${extraStats}
       ${musicStats}
@@ -287,22 +331,17 @@ export class HUDManager {
       <span style="cursor:pointer; margin-left:4px; opacity:0.6; font-size:14px; font-weight:bold;" id="mindful-hud-minimize" title="Thu nhỏ">−</span>
     `;
 
-    if (this.petEngine) {
-      const slot = this.hud.querySelector("#mindful-hud-pet-slot");
-      if (slot) this.petEngine.mount(slot);
-    }
-
-    this.hud.querySelector("#mindful-hud-start-pomodoro")?.addEventListener("click", (e) => {
+    contentSlot.querySelector("#mindful-hud-start-pomodoro")?.addEventListener("click", (e) => {
       e.stopPropagation();
       this.onStartPomodoroRequest?.();
     });
 
-    this.hud.querySelector("#mindful-hud-stop-pomodoro")?.addEventListener("click", (e) => {
+    contentSlot.querySelector("#mindful-hud-stop-pomodoro")?.addEventListener("click", (e) => {
       e.stopPropagation();
       this.onStopPomodoro?.();
     });
 
-    this.hud.querySelector("#mindful-hud-focus-mode-btn")?.addEventListener("click", (e) => {
+    contentSlot.querySelector("#mindful-hud-focus-mode-btn")?.addEventListener("click", (e) => {
       e.stopPropagation();
       const newMode = this.focusMode === "music" ? "study" : "music";
       this.focusMode = newMode;
@@ -310,12 +349,12 @@ export class HUDManager {
       this.update(isBreakSession);
     });
 
-    this.hud.querySelector("#mindful-hud-dev-btn")?.addEventListener("click", (e) => {
+    contentSlot.querySelector("#mindful-hud-dev-btn")?.addEventListener("click", (e) => {
       e.stopPropagation();
       this._toggleQuickDevToolbox();
     });
 
-    this.hud.querySelector("#mindful-hud-minimize")?.addEventListener("click", () => {
+    contentSlot.querySelector("#mindful-hud-minimize")?.addEventListener("click", () => {
       this._isMinimized = true;
       this.update(isBreakSession);
     });
